@@ -1,0 +1,57 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>開始測驗</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="quiz-body">
+
+    <div id="view-quiz" class="stage">
+        <div id="quizBackBtn" class="back-home-btn">
+            <img src="PNG/回到最頂部_箭頭.png" alt="返回上一題">
+        </div>
+        <video id="quiz-bg-video" class="bg-video" autoplay loop muted playsinline></video>
+        <img id="quiz-bg-img" class="bg-img" alt="測驗背景圖" style="display: none;">
+        <div class="progress-bar"><div id="quiz-progress" class="progress-fill"></div></div>
+        
+        <div class="quiz-header">
+            <span id="quiz-lead" class="lead"></span>
+            <h2 id="quiz-q" class="question-text">題目載入中...</h2>
+        </div>
+        <div id="quiz-options" class="options-grid"></div>
+    </div>
+
+ <div id="view-interlude" class="stage hidden">
+        <img id="interlude-bg-img" class="bg-img" src="" alt="過場背景">
+        
+        <div class="interlude-next-text" id="interludeBtnContainer" style="display: none;">
+            <span class="line"></span>
+            <span id="interlude-btn-text" class="text">前往...</span>
+            <span class="line"></span>
+        </div>
+    </div>
+
+    <div id="view-result" class="stage hidden result-stage">
+        <div class="result-image-container">
+            
+            <img id="res-bg-img" src="" alt="測驗結果" class="result-base-img">
+
+            <video id="res-dynamic-video" class="res-dynamic-video" autoplay loop muted playsinline></video>
+            
+            <p class="res-dynamic-text">
+                <span id="res-name">名字</span> 你的手語名字是：
+            </p>
+            
+            <div class="res-button-group">
+                <button class="res-btn outline-btn" onclick="startStage1()">重測</button>
+                <button class="res-btn solid-btn" onclick="window.location.href='booth-duo-ipad.html'">去玩拍貼</button>
+            </div>
+
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

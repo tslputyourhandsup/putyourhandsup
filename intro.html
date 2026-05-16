@@ -1,0 +1,37 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>什麼是手語名字</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="intro-page">
+
+    <a href="quiz-start.html" class="back-home-btn">
+        <img src="PNG/回到最頂部_箭頭.png" alt="返回首頁">
+    </a>
+
+    <div class="intro-container">
+        <img src="JPG/介紹.jpg" alt="什麼是手語名字" class="intro-bg-img">
+        <img src="PNG/介紹_按鈕.png" alt="前往下一階段" class="next-btn" id="nextBtn">
+    </div>
+
+    <div class="info-overlay" id="infoOverlay" style="display: none;">
+        <div class="info-card">
+            <h2 class="info-title">該如何稱呼你呢</h2>
+           <input type="text" id="userNameInput" class="info-input" placeholder="輸入名字" autocomplete="off">
+
+            <h2 class="info-title">生理性別</h2>
+            <div class="gender-selection">
+                <button class="gender-btn" data-gender="男">男</button>
+                <button class="gender-btn" data-gender="女">女</button>
+            </div>
+
+            <button id="gogoBtn" class="gogo-btn">GOGO！</button>
+        </div>
+    </div>
+
+    <script src="script.js"></script>
+</body>
+</html>

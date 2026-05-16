@@ -1,0 +1,260 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>拍貼預覽與下載</title>
+    <link rel="stylesheet" href="style.css">
+    <script src="https://cdn.jsdelivr.net/npm/qrcodejs/qrcode.min.js"></script>
+<style>
+        /* 🚨 修復關鍵 1：千萬不要限制 width 跟 height，否則畫質與比例會崩壞！ */
+        #source-videos {
+            position: absolute;
+            top: -9999px;
+            left: -9999px;
+            opacity: 0.01;
+            pointer-events: none;
+            overflow: hidden;
+            /* width: 1px;  <-- 刪除 */
+            /* height: 1px; <-- 刪除 */
+        }
+    </style>
+</head>
+<body class="booth-page">
+
+    <div id="preview-ui" class="preview-stage">
+        
+        <div class="preview-image-container">
+            <img src="JPG/心理測驗結果_背景.jpg" class="preview-base-img" alt="預覽背景">
+
+            <div class="video-group-container">
+                <canvas id="resultCanvas" class="final-canvas"></canvas>
+            </div>
+
+            <div id="ui-qrcode" class="preview-qr-img" style="background:#fff; padding:10px; border-radius:15px; display:flex; justify-content:center; align-items:center;">
+                <span style="color:#aaa; font-size: 1rem; font-weight: bold;">處理中...</span>
+            </div>
+
+            <div class="preview-btn-group">
+                <button class="res-btn outline-btn" onclick="window.location.href='booth-duo-ipad.html'">重新拍攝</button>
+                <button class="res-btn solid-btn" onclick="window.location.href='guestbook.html'">來留言吧！</button>
+            </div>
+            
+        </div>
+    </div>
+
+    <div id="source-videos">
+        <video id="template-video" loop muted playsinline crossorigin="anonymous"></video>
+        
+    </div>
+
+    <script>
+// ==========================================
+// 1. 設定與初始化
+// ==========================================
+// ==========================================
+// 1. 設定與初始化
+// ==========================================
+const CLIP_POSITIONS = [
+    // 第一格：維持橫向比例
+    { x: 395, y: 795, w: 600, h: 340, rotate: 8 }, 
+    // 第二格：維持橫向比例
+    { x: 350, y: 1160, w: 600, h: 340, rotate: 8 }  
+];
+const canvas = document.getElementById('resultCanvas');
+const ctx = canvas.getContext('2d', { alpha: false }); 
+const templateVideo = document.getElementById('template-video');
+let userClips = [];
+
+function getBlobFromDB(key) {
+    return new Promise((resolve) => {
+        const request = indexedDB.open("PhotoboothDB", 3);
+        request.onsuccess = e => {
+            const db = e.target.result;
+            if(!db.objectStoreNames.contains("videos")) { resolve(null); return; }
+            const tx = db.transaction("videos", "readonly");
+            const req = tx.objectStore("videos").get(key);
+            req.onsuccess = () => resolve(req.result);
+            req.onerror = () => resolve(null);
+        };
+        request.onerror = () => resolve(null);
+    });
+}
+
+function prepareVideo(videoEl, srcData) {
+    return new Promise((resolve) => {
+        videoEl.muted = true;
+        videoEl.loop = true;
+        videoEl.playsInline = true;
+        
+        videoEl.onloadeddata = () => {
+            videoEl.play().catch(e => console.log("播放被阻擋", e));
+            resolve(videoEl);
+        };
+        
+        videoEl.onerror = () => {
+            console.error("🚨 找不到模板影片！請檢查路徑：", srcData);
+            resolve(videoEl);
+        };
+
+        if (typeof srcData === 'string') {
+            videoEl.src = srcData;
+        } else if (srcData instanceof Blob) {
+            videoEl.src = URL.createObjectURL(srcData);
+        }
+        
+        // 強制逾時保護
+        setTimeout(() => resolve(videoEl), 3000); 
+    });
+}
+
+document.addEventListener('DOMContentLoaded', async () => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const role = urlParams.get('role') || '淘氣女'; 
+    const container = document.getElementById('source-videos');
+    const qrContainer = document.getElementById('ui-qrcode');
+
+    qrContainer.innerHTML = '<span style="color:#aaa; font-size: 1rem; font-weight: bold;">準備影片中...</span>';
+
+    // 🎯 畫質保證：先設定尺寸
+    canvas.width = 1080;
+    canvas.height = 1920;
+
+    const pTemplate = prepareVideo(templateVideo, `photo/${role}_拍照模板.webm`);
+    
+    const pClip1 = getBlobFromDB('clip_1').then(blob => {
+        if(!blob) return null;
+        const v = document.createElement('video');
+        container.appendChild(v);
+        return prepareVideo(v, blob);
+    });
+    
+    const pClip2 = getBlobFromDB('clip_2').then(blob => {
+        if(!blob) return null;
+        const v = document.createElement('video');
+        container.appendChild(v);
+        return prepareVideo(v, blob);
+    });
+
+    const [readyTemplate, readyClip1, readyClip2] = await Promise.all([pTemplate, pClip1, pClip2]);
+    userClips = [readyClip1, readyClip2].filter(v => v !== null);
+
+   // 先啟動畫面渲染引擎
+    render(); 
+
+    // 🎯 修復閃爍 Bug：給瀏覽器 0.5 秒的緩衝時間，確保底圖已經畫上去了
+    setTimeout(() => {
+        // 錄影前，把所有影片強制拉回 0 秒，確保大家完美同步起跑
+        if (templateVideo) templateVideo.currentTime = 0;
+        userClips.forEach(v => { if (v) v.currentTime = 0; });
+        
+        // 畫面都準備好了，正式開始錄影！
+        startCanvasRecording(); 
+    }, 500);
+
+    function render() {
+        ctx.fillStyle = '#FFFFFF'; 
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+        
+        // 🚀 核心修復：確保影片在播放，且不因 videoWidth 為 0 而跳過
+        userClips.forEach((v, index) => {
+            const pos = CLIP_POSITIONS[index];
+            if (v) {
+                // 如果影片暫停了，把它叫醒
+                if (v.paused) v.play().catch(()=>{});
+                try { drawVideo(ctx, v, pos.x, pos.y, pos.w, pos.h, pos.rotate); } catch(e) {}
+            }
+        });
+        
+        if (templateVideo) {
+            if (templateVideo.paused) templateVideo.play().catch(()=>{});
+            try { ctx.drawImage(templateVideo, 0, 0, canvas.width, canvas.height); } catch(e) {}
+        }
+
+       // 🎯 名字渲染 (進階版：支援大小、位置與旋轉)
+        const userName = localStorage.getItem('user_name') || '玩家';
+        ctx.save();
+
+        // 💡 1. 在這裡調整「位置」
+        const textX = 250; // 左右 (數字越大越靠右)
+        const textY = 250; // 上下 (數字越大越靠下)
+        
+        // 💡 2. 在這裡調整「旋轉角度」
+        const textAngle = -4; // 正數順時針，負數逆時針 (例如 -5 就是往左微傾斜)
+
+        // 💡 3. 在這裡調整「文字大小」與顏色
+        // 把 55px 改大或改小，就可以改變字體大小！
+        ctx.font = '400 40px "LINE Seed TW", sans-serif'; 
+        ctx.fillStyle = '#4A4A4A'; 
+        
+        // 執行旋轉與寫字的魔法
+        ctx.translate(textX, textY);
+        ctx.rotate((textAngle * Math.PI) / 180);
+        ctx.fillText(userName, 0, 0); 
+        
+        ctx.restore();
+
+        requestAnimationFrame(render);
+    }
+});
+
+function drawVideo(ctx, video, x, y, width, height, degrees) {
+    // 只有在真的有畫面時才畫，避免畫出黑塊
+    if (video.videoWidth === 0) return;
+
+    ctx.save();
+    ctx.translate(x + width/2, y + height/2);
+    ctx.rotate(degrees * Math.PI / 180.0);
+    const ratio = video.videoWidth / video.videoHeight;
+    const targetRatio = width / height;
+    let sw, sh, sx, sy;
+    if (ratio > targetRatio) { sh = video.videoHeight; sw = sh * targetRatio; sy = 0; sx = (video.videoWidth - sw) / 2; } 
+    else { sw = video.videoWidth; sh = sw / targetRatio; sx = 0; sy = (video.videoHeight - sh) / 2; }
+    ctx.drawImage(video, sx, sy, sw, sh, -width/2, -height/2, width, height);
+    ctx.restore();
+}
+
+function startCanvasRecording() {
+    // 🎯 優化 1：將擷取幀率提升到 60fps
+    const stream = canvas.captureStream(60);
+    
+    // 🎯 優化 2：優先嘗試硬體加速的 H.264，碼率降至 5 Mbps
+    let options = { mimeType: 'video/webm;codecs=h264', videoBitsPerSecond: 5000000 };
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = 'video/webm;codecs=vp8';
+    }
+    if (!MediaRecorder.isTypeSupported(options.mimeType)) {
+        options.mimeType = 'video/webm';
+    }
+    
+    const recorder = new MediaRecorder(stream, options);
+    const chunks = [];
+    recorder.ondataavailable = e => { if(e.data.size > 0) chunks.push(e.data); };
+    recorder.onstop = async () => {
+        const finalBlob = new Blob(chunks, { type: options.mimeType });
+        const qrContainer = document.getElementById('ui-qrcode');
+        qrContainer.innerHTML = '<span style="color:#aaa; font-size: 1rem; font-weight: bold; text-align: center;">雲端轉檔中...</span>';
+        
+        const formData = new FormData();
+        formData.append('file', finalBlob);
+        formData.append('upload_preset', 'put your hands up');
+
+        try {
+            const response = await fetch(`https://api.cloudinary.com/v1_1/dz8vnxfts/video/upload`, { method: 'POST', body: formData });
+            const result = await response.json();
+            if (result.secure_url) {
+                const mp4Url = result.secure_url
+                    .replace('/upload/', '/upload/f_mp4,vc_h264,q_auto:best,w_1080,h_1920,c_fill,ac_none/')
+                    .replace('.webm', '.mp4');
+                const mobilePageUrl = `https://hancaaaaai.github.io/putyourhandsup415/share.html?video=${encodeURIComponent(mp4Url)}`;
+                qrContainer.innerHTML = ''; 
+                new QRCode(qrContainer, { text: mobilePageUrl, width: 200, height: 200 });
+            }
+        } catch (error) { console.error(error); qrContainer.innerHTML = '<span style="color:red;">網路錯誤</span>'; }
+    };
+    recorder.start(100); // 🎯 優化 3：分段處理，減輕 CPU 負擔
+    setTimeout(() => { recorder.stop(); }, 9800);
+}
+    </script>
+</body>
+</html>

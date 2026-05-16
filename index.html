@@ -1,0 +1,331 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>動字動字：Put Your Hands Up</title>
+    
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/gsap.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/gsap/3.12.2/ScrollTrigger.min.js"></script>
+    
+    <link rel="stylesheet" href="style.css">
+</head>
+<body class="home-page">
+    <a href="#" id="back-to-top-btn" class="back-to-top-btn hidden">
+        <img src="PNG/回到最頂部_箭頭.png" alt="回到上一層">
+    </a>
+    <header class="home-hero">
+        <a href="#" class="floating-logo">
+            <img src="PNG/LOGO.png" alt="動字動字 LOGO">
+        </a>
+        <nav class="navbar">
+            <a href="#" class="nav-item active">首頁</a>
+            <a href="#what-is-section" class="nav-item">關於我們</a>
+            <a href="#icon-overview-section" class="nav-item">圖標總覽</a>
+            <a href="quiz-start.html" class="nav-item">手語名字</a>
+        </nav>
+        <video class="hero-anim-video hero-school" src="Icon overview/學校.webm" autoplay loop muted playsinline></video>
+        <video class="hero-anim-video hero-stairs" src="Icon overview/樓梯.webm" autoplay loop muted playsinline></video>
+        <div class="scroll-down-container">
+            <a href="#what-is-section">
+                <img src="PNG/箭頭向下.png" alt="往下滑動查看動畫" class="scroll-arrow">
+            </a>
+        </div>
+    </header>
+
+    <section id="what-is-section" class="what-is-section"></section>
+    
+    <section id="daily-scenery-section" class="daily-scenery-section"></section>
+
+    <section id="target-audience-section" class="target-audience-section">
+        <video id="audience-video" class="audience-video" src="front page/客群.webm" muted playsinline></video>
+        <img src="PNG/客群_文字.png" class="audience-text-overlay" alt="客群文字需求">
+    </section>
+
+    <section id="why-learn-section" class="why-learn-section">
+        <div class="glass-container" id="glassContainer">
+            <div class="text-layer text-blurred" id="textBlurred">
+                <h1>
+                    <span class="text-line-1">為什麼</span>
+                    <span class="text-line-2">要學習手語？</span>
+                </h1>
+            </div>
+            <div class="text-layer text-clear" id="textClear">
+                <h1>
+                    <span class="text-line-1">為什麼</span>
+                    <span class="text-line-2">要學習手語？</span>
+                </h1>
+            </div>
+            <img src="PNG/放大鏡.png" class="magnifying-glass" id="magnifyingGlass" alt="放大鏡">
+        </div>
+    </section>
+
+    <section id="current-status-section" class="current-status-section">
+        <div class="status-sticky-container">
+            <video id="status-video" class="status-video" src="front page/現況.webm" muted playsinline></video>
+            <div class="status-title-container" id="status-title">
+                <div class="typewriter-line line-1">先來了解</div>
+                <div class="typewriter-line line-2">台灣手語現況</div>
+            </div>
+            <div class="status-cards-wrapper">
+                <img src="PNG/手語現況卡片01.png" class="status-card card-1" alt="現況一">
+                <img src="PNG/手語現況卡片02.png" class="status-card card-2" alt="現況二">
+                <img src="PNG/手語現況卡片03.png" class="status-card card-3" alt="現況三">
+                <img src="PNG/手語現況卡片04.png" class="status-card card-4" alt="現況四">
+                <img src="PNG/手語現況卡片05.png" class="status-card card-5" alt="現況五">
+            </div>
+        </div>
+    </section>
+
+    <section id="learn-sign-section" class="learn-sign-section">
+        <div class="learn-sticky-container" id="learn-sticky-container">
+            <img src="PNG/學習手語_文字.png" class="learn-text-overlay" alt="學習手語標題">
+            <div class="learn-text-content">
+                <ul class="learn-list" id="learnList">
+                    <li class="learn-item active" data-index="0">用行動落實資訊平權</li>
+                    <li class="learn-item" data-index="1">溝通多一種可能</li>
+                    <li class="learn-item" data-index="2">促進聾人參與社會公共事務</li>
+                    <li class="learn-item" data-index="3">文化傳承</li>
+                </ul>
+            </div>
+            <div class="learn-video-content" id="learnVideoContent">
+                <video class="learn-video active" src="front page/學習手語01.webm" muted playsinline loop></video>
+                <video class="learn-video" src="front page/學習手語02.webm" muted playsinline loop></video>
+                <video class="learn-video" src="front page/學習手語03.webm" muted playsinline loop></video>
+                <video class="learn-video" src="front page/學習手語04.webm" muted playsinline loop></video>
+            </div>
+        </div>
+    </section>
+
+<section id="what-we-did-section" class="what-we-did-section">
+        <div class="marquee-container">
+            <div class="marquee-text">
+                <span>動字動字做了什麼？</span>
+                <span>動字動字做了什麼？</span>
+                <span>動字動字做了什麼？</span>
+                <span>動字動字做了什麼？</span>
+                <span>動字動字做了什麼？</span>
+                <span>動字動字做了什麼？</span>
+                <span>動字動字做了什麼？</span>
+                <span>動字動字做了什麼？</span>
+            </div>
+        </div>
+        <div class="media-box box-1">
+            <video src="front page/標牌影片_1.mp4" autoplay muted playsinline loop></video>
+        </div>
+        <div class="media-box box-2">
+            <video src="front page/標牌影片_2.mp4" autoplay muted playsinline loop></video>
+        </div>
+        <div class="media-box box-3">
+            <video src="front page/標牌影片_3.mp4" autoplay muted playsinline loop></video>
+        </div>
+    </section>
+    <div id="horizontal-track-wrapper">
+        <div id="horizontal-track">
+
+            <section id="faq-section" class="faq-section">
+                <div class="faq-container">
+                    <div class="faq-box">
+                        <h2 class="faq-title">FAQ</h2>
+                        <div class="faq-list">
+                            <div class="faq-item">
+                                <div class="faq-question">
+                                    <span>全世界的手語都一樣？</span>
+                                    <button class="faq-toggle"><div class="faq-line-h"></div><div class="faq-line-v"></div></button>
+                                </div>
+                                <div class="faq-answer">
+                                    <p>手語不是全世界通用的！不同國家都有自己的手語系統，就像不同的語言一樣<br>雖然有一種為了國際交流而產生的「國際手語（IS）」，但因不具備固定的語法和詞彙，並不是一個真正的語言</p>
+                                </div>
+                            </div>
+                            <div class="faq-item">
+                                <div class="faq-question">
+                                    <span>台灣手語是正式語言嗎？</span>
+                                    <button class="faq-toggle"><div class="faq-line-h"></div><div class="faq-line-v"></div></button>
+                                </div>
+                                <div class="faq-answer">
+                                    <p>台灣手語已於2018年通過《國家語言發展法》，正式列為國家語言<br>2021年教育部也將台灣手語納入十二年國教課綱，成為國中小及高中的語言課程之一</p>
+                                </div>
+                            </div>
+                            <div class="faq-item">
+                                <div class="faq-question">
+                                    <span>台灣手語也有南北差異？</span>
+                                    <button class="faq-toggle"><div class="faq-line-h"></div><div class="faq-line-v"></div></button>
+                                </div>
+                                <div class="faq-answer">
+                                    <p>台灣手語在發展過程中，日治時期受到日本手語的影響，因此台灣手語也出現南北差異<br>就像不同地區有不同腔調一樣，雖然手勢或詞彙有些差異，但通常不會影響溝通</p>
+                                </div>
+                            </div>
+                           <div class="faq-item long-text-item">
+    <div class="faq-question">
+        <span>台灣手語的文法和中文不同？</span>
+        <button class="faq-toggle"><div class="faq-line-h"></div><div class="faq-line-v"></div></button>
+    </div>
+    <div class="faq-answer">
+        <p>手語分為「自然手語」和「文法手語」<br>自然手語是聾人社群在日常生活中自然發展出來的語言<br>許多動作來自生活事物的模仿，特色是表意不表字<br><br>文法手語主要出現在教育體制中，由特殊教育者所設計<br>句型結構仿照中文語法，語氣較自然手語不足<br><br>在聾人社群的日常溝通中，多半仍使用自然手語<br>因為它更符合手語本身的語言邏輯，也更自然流暢</p>
+    </div>
+</div>
+                            <div class="faq-item">
+                                <div class="faq-question">
+                                    <span>表情也是手語的一部分？</span>
+                                    <button class="faq-toggle"><div class="faq-line-h"></div><div class="faq-line-v"></div></button>
+                                </div>
+                                <div class="faq-answer">
+                                    <p>手語是一種視覺語言，由手勢、位置、方向與表情組成<br>其中表情代表著語氣，用來表示疑問、否定、肯定或強調等意思</p>
+                                </div>
+                            </div>
+                            <div class="faq-item">
+                                <div class="faq-question">
+                                    <span>手語有專門的單位統一嗎？</span>
+                                    <button class="faq-toggle"><div class="faq-line-h"></div><div class="faq-line-v"></div></button>
+                                </div>
+                                <div class="faq-answer">
+                                    <p>手語並不是由某個人或機構統一制定的語言，而是透過社群長期的使用，逐漸形成的共識<br>詞彙也會隨著時代與社會發展不斷更新，例如疫情期間就出現了「新冠病毒」、「確診」或「快篩」等新的手語詞彙</p>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="faq-right">
+                        <div class="faq-floating-text">為你解答手語問題！</div>
+                        <div class="faq-character-container">
+       <img class="character-img" src="PNG/主角_眼球.png" alt="FAQ 角色">
+        
+                        <div class="eye left-eye">
+                        <div class="pupil"></div>
+                        </div>
+        
+                        <div class="eye right-eye">
+                        <div class="pupil"></div>
+                        </div>
+                       
+                        </div>
+                        <svg class="faq-curly-line" viewBox="0 0 200 100" xmlns="http://www.w3.org/2000/svg">
+                            <path d="M 10 80 C 40 85 70 85 90 70 C 110 50 90 30 80 40 C 70 50 70 75 100 80 C 140 85 170 50 190 20" stroke="#4A4A4A" stroke-width="8" fill="none" stroke-linecap="round"/>
+                        </svg>
+                    </div>
+                </div>
+            </section>
+
+            <section id="icon-overview-section" class="icon-overview-section">
+                <div class="cyan-grid-panel">
+                    <div class="cyan-grid-container">
+                        <div class="grid-top">
+                            <div class="grid-box top-left-box">
+                                <video id="main-webm" src="Icon overview/樓梯.webm" autoplay loop muted playsinline></video>
+                            </div>
+                            <div class="grid-box top-right-box">
+    <img id="desc-img" src="Icon overview/樓梯_說明.png" alt="圖標說明">
+    
+    <div class="teach-hover-overlay">
+        <button id="start-teach-btn" class="teach-btn">跟著比比看</button>
+    </div>
+</div>
+                        </div>
+                        <div class="grid-bottom">
+                            <div class="drag-overlay" id="drag-overlay">
+                                <div class="swing-dot"></div>
+                                <p>可以左右拖曳</p>
+                            </div>
+                            <div class="grid-box bottom-box" id="icon-selector">
+                                <div class="category-group">
+                                    <div class="category-title">空間導向</div>
+                                    <div class="category-icons">
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/樓梯.png" alt="樓梯"></div><div class="icon-name">樓梯</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/手扶梯.png" alt="手扶梯"></div><div class="icon-name">手扶梯</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/電梯.png" alt="電梯"></div><div class="icon-name">電梯</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/無線網路.png" alt="無線網路"></div><div class="icon-name">無線網路</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/公共電話.png" alt="公共電話"></div><div class="icon-name">公共電話</div></div>
+                                    </div>
+                                </div>
+                                <div class="category-group">
+                                    <div class="category-title">服務互動</div>
+                                    <div class="category-icons">
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/滅火器.png" alt="滅火器"></div><div class="icon-name">滅火器</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/資源回收.png" alt="資源回收"></div><div class="icon-name">資源回收</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/一般垃圾.png" alt="一般垃圾"></div><div class="icon-name">一般垃圾</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/置物櫃.png" alt="置物櫃"></div><div class="icon-name">置物櫃</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/茶水間.png" alt="茶水間"></div><div class="icon-name">茶水間</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/哺(集)乳室.png" alt="哺(集)乳室"></div><div class="icon-name">哺(集)乳室</div></div>
+                                    </div>
+                                </div>
+                                <div class="category-group">
+                                    <div class="category-title">公共場所</div>
+                                    <div class="category-icons">
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/廁所.png" alt="廁所"></div><div class="icon-name">廁所</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/男廁.png" alt="男廁"></div><div class="icon-name">男廁</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/女廁.png" alt="女廁"></div><div class="icon-name">女廁</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/公園.png" alt="公園"></div><div class="icon-name">公園</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/圖書館.png" alt="圖書館"></div><div class="icon-name">圖書館</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/學校.png" alt="學校"></div><div class="icon-name">學校</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/體育館.png" alt="體育館"></div><div class="icon-name">體育館</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/餐廳.png" alt="餐廳"></div><div class="icon-name">餐廳</div></div>
+                                    </div>
+                                </div>
+                                <div class="category-group">
+                                    <div class="category-title">交通設施</div>
+                                    <div class="category-icons">
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/公車站.png" alt="公車站"></div><div class="icon-name">公車站</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/月台.png" alt="月台"></div><div class="icon-name">月台</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/捷運.png" alt="捷運"></div><div class="icon-name">捷運</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/高鐵.png" alt="高鐵"></div><div class="icon-name">高鐵</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/機場.png" alt="機場"></div><div class="icon-name">機場</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/海關.png" alt="海關"></div><div class="icon-name">海關</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/加油站.png" alt="加油站"></div><div class="icon-name">加油站</div></div>
+                                    </div>
+                                </div>
+                                <div class="category-group">
+                                    <div class="category-title">行為規範</div>
+                                    <div class="category-icons">
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/禁止觸摸.png" alt="禁止觸摸"></div><div class="icon-name">禁止觸摸</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/禁止飲食.png" alt="禁止飲食"></div><div class="icon-name">禁止飲食</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/禁止拍攝.png" alt="禁止拍攝"></div><div class="icon-name">禁止拍攝</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/禁止交談.png" alt="禁止交談"></div><div class="icon-name">禁止交談</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/禁止吸菸.png" alt="禁止吸菸"></div><div class="icon-name">禁止吸菸</div></div>
+                                        <div class="icon-item"><div class="icon-box"><img src="Icon overview/禁止進入.png" alt="禁止進入"></div><div class="icon-name">禁止進入</div></div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+        </div>
+    </div>
+        
+    <section class="spec-details-section" id="spec-details-section">
+        <div class="spec-sticky-container" id="spec-sticky-container">
+            <img src="PNG/圖標規範細節01.png" class="spec-sequence-img" id="spec-sequence-img" alt="圖標規範細節">
+        </div>
+    </section>
+
+    <section class="icon-extension-section" id="icon-extension-section">
+        <div class="extension-content">
+            <div class="flipbook-wrapper">
+                <div class="custom-slider-container">
+                    <div class="slider-track" id="slider-track">
+                        <div class="slide-page active"><img src="JPG/圖標規範手冊01.jpg" alt="頁面 1"></div>
+                        <div class="slide-page waiting"><img src="JPG/圖標規範手冊02.jpg" alt="頁面 2"></div>
+                        <div class="slide-page waiting"><img src="JPG/圖標規範手冊03.jpg" alt="頁面 3"></div>
+                        <div class="slide-page waiting"><img src="JPG/圖標規範手冊04.jpg" alt="頁面 4"></div>
+                        <div class="slide-page waiting"><img src="JPG/圖標規範手冊05.jpg" alt="頁面 5"></div>
+                        <div class="slide-page waiting"><img src="JPG/圖標規範手冊06.jpg" alt="頁面 6"></div>
+                        <div class="slide-page waiting"><img src="JPG/圖標規範手冊07.jpg" alt="頁面 7"></div>
+                    </div>
+                </div>
+
+                <div class="flipbook-controls">
+                    <button id="prev-page-btn" class="flip-btn disabled">
+                        <img src="PNG/圖標規範細節_左.png" alt="上一頁">
+                    </button>
+                    <span class="flip-text">請翻閱</span>
+                    <button id="next-page-btn" class="flip-btn">
+                        <img src="PNG/圖標規範細節_右.png" alt="下一頁">
+                    </button>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <script src="script.js"></script>
+</body>
+</html>

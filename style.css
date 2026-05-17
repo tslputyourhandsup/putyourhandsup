@@ -1550,12 +1550,12 @@ html, body { -ms-overflow-style: none; scrollbar-width: none; }
 /* 當 JS 加上 .is-active 時，啟動打字動畫 */
 .status-title-container.is-active .line-1 {
     /* 第一行：4個字，打字時間 1秒 */
-    animation: type-line1 1s steps(4, end) forwards;
+    animation: type-line1 0.25s steps(4, end) forwards;
 }
 
 .status-title-container.is-active .line-2 {
     /* 第二行：6個字，打字時間 1.5秒，並且延遲 1秒等第一行打完才開始 */
-    animation: type-line2 1.5s steps(6, end) 1s forwards;
+    animation: type-line2 0.5s steps(6, end) 1s forwards;
 }
 
 /* 🎯 動畫關鍵影格 (中文字剛好是 1em 寬度) */

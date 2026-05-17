@@ -1960,7 +1960,7 @@ html, body { -ms-overflow-style: none; scrollbar-width: none; }
 /* 🎯 關鍵修復：強制給定精準的高度 %，解決灰色框框被擠扁的 Bug */
 /* 🎯 上半部：嚴格雙框比例 (55% : 45%) */
 .grid-top { 
-    height: 58%; 
+    height: calc(58% - 1.5vh); /* 👈 原本是 58% */
     width: 100%;
     display: flex; 
     gap: 2vw; 
@@ -2002,8 +2002,8 @@ html, body { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
 .grid-bottom { 
-    position: relative; /* 🎯 關鍵修復：加入這行，把黑色遮罩死死鎖在下半部！ */
-    height: 42%; 
+    position: relative; 
+    height: calc(42% - 1.5vh); /* 👈 原本是 42% */
     width: 100%;
     display: flex; 
 }

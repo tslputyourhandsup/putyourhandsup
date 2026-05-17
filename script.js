@@ -574,7 +574,7 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 13. 第九 -> 第十區：GSAP 攝影機橫向平移 
+// 13. 第九 -> 第十區：GSAP 攝影機橫向平移 (🔥終極完美版：頭尾雙重緩衝)
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
     if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
@@ -584,17 +584,29 @@ window.addEventListener('DOMContentLoaded', () => {
         const wrapper = document.getElementById('horizontal-track-wrapper');
 
         if (track && wrapper) {
-            gsap.to(track, {
-                x: "-100vw", 
-                ease: "none",
+            // 1. 總滾動長度加長到 200%，分配給：停頓 -> 滑動 -> 停頓
+            let tl = gsap.timeline({
                 scrollTrigger: {
                     trigger: wrapper,
                     start: "top top",
-                    end: "+=100%",    
-                    pin: wrapper,     
-                    scrub: true      
+                    end: "+=200%", // 🎯 總長度改為 200%
+                    pin: wrapper,
+                    scrub: true
                 }
             });
+
+            // 2. 開頭緩衝 (FAQ 停留)：讓 FAQ 滿版定格一下，不會立刻跑掉漏餡
+            tl.to({}, { duration: 0.5 }); 
+
+            // 3. 橫向移動：將軌道平滑推向圖標總覽
+            tl.to(track, {
+                x: "-100vw", 
+                ease: "none",
+                duration: 1
+            });
+
+            // 4. 結尾緩衝 (圖標總覽停留)：保留上一題加的設定，避免滑過頭
+            tl.to({}, { duration: 0.5 }); 
         }
     }
 });

@@ -1,6 +1,9 @@
-// teach.js - 終極完整版 (新增哺集乳室、動態擠壓雷達與所有防呆機制)
+// teach.js - 終極完整版 (新增哺集乳室、動態擠壓雷達與所有防呆機制 + 自動連播與不中斷優化)
 
 document.addEventListener('DOMContentLoaded', async () => {
+
+   // 🎯 新增：防止切換過程中重複觸發或被打斷的鎖定開關
+   let isTransitioningIcon = false;
 
    const SIGN_STEPS = {
         '樓梯': 1, '電扶梯': 1, '電梯': 1, '公共電話': 1, '公車站': 1, '廁所': 1, '無線網路': 1, '學校': 1,
@@ -40,9 +43,22 @@ document.addEventListener('DOMContentLoaded', async () => {
     const initialDescImg = document.querySelector('.teach-desc-img');
     if (initialDescImg) initialDescImg.src = `teach/${initialIcon}_圖標說明.png`;
 
-    function updateToStep(step, iconName) {
+  function updateToStep(step, iconName) {
         currentStep = step;
         isWavedLock = false;
+        
+        // 🎯 關鍵修復 1：集中清空所有軌跡陣列，徹底消除上一個動作的殘留記憶
+        handXHistory = []; 
+        handYHistory = []; 
+        platformSizeHistory = [];
+        platformYHistory = [];
+        handGatherHistory = [];
+
+        // 🎯 關鍵修復 2：加入「步驟防誤觸冷卻時間」 (1.5秒)
+        // 讓使用者有時間放下手或準備下一個動作
+        window.isStepCooldown = true;
+        setTimeout(() => { window.isStepCooldown = false; }, 1500); 
+
         if (stepDotsContainer) {
             const totalSteps = SIGN_STEPS[iconName] || 1;
             stepDotsContainer.innerHTML = '';
@@ -57,7 +73,6 @@ document.addEventListener('DOMContentLoaded', async () => {
         if (videoHand) videoHand.src = `teach/${iconName}_步驟${step}_手勢.webm`;
         syncVideos();
     }
-
     if (teachTitle) updateToStep(1, teachTitle.innerText.trim());
 
     try {
@@ -150,7 +165,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                            getDist(landmarks[16], landmarks[4]) + getDist(landmarks[20], landmarks[4]);
         const gatherRatio = gatherDist / size; 
 
-    // 📚 新增：圖書館 Step 1 - 攤平 (四指伸直)
+        // 📚 新增：圖書館 Step 1 - 攤平 (四指伸直)
         const isFlatOpen = isIndexExt && isMiddleExt && isRingExt && isPinkyExt;
 
         // 📚 新增：圖書館 Step 2 - 一手比二，大拇指貼到中指
@@ -164,87 +179,162 @@ document.addEventListener('DOMContentLoaded', async () => {
         return { isLegs, isPlatform, isPhoneShape, isWCShape, isThumbUp, isPinkyUp, isThreeShape, isOneShape, isFireShape, isFist, isHoseShape, isHookShape, isFlatOpen, isLibTwoShape, isSlightlyBent, centerY, centerX, size, landmarks };
     }
 
-    function onHandsResults(results) {
+  function onHandsResults(results) {
+        // 🎯 新增：如果正在自動切換圖標中，就凍結畫面維持 100% 的狀態，不再做額外判定
+        if (isTransitioningIcon) return;
+
+        // 🎯 關鍵修復 3：攔截防誤觸冷卻狀態
+        // 如果正在「動作切換的冷卻時間」內，直接顯示準備提示，不進行手勢判定
+        if (window.isStepCooldown) {
+            const accuracyBar = document.getElementById('accuracy-bar');
+            const accuracyText = document.getElementById('accuracy-text');
+            const teachInstruction = document.getElementById('teach-instruction');
+            
+            if (accuracyBar) accuracyBar.style.width = '0%';
+            if (accuracyText) accuracyText.innerText = '0%';
+            if (teachInstruction) {
+                teachInstruction.innerText = "動作切換中，請準備...";
+                teachInstruction.style.color = "#4A4A4A";
+            }
+            return; // 🛑 提早結束，直接跳過下方所有的手勢判斷邏輯
+        }
+
         const name = teachTitle ? teachTitle.innerText.trim() : "";
         let score = 0; let hintMsg = "等待開始...";
-
         if (results.multiHandLandmarks && results.multiHandLandmarks.length > 0) {
             if (webcamDimOverlay) webcamDimOverlay.classList.add('hidden');
 
             const hand = analyzeHandPose(results.multiHandLandmarks[0]);
-
-            // ==========================================
+// ==========================================
             // 🍼 哺(集)乳室 (雙步：鉤子靠嘴 -> 抱嬰擠乳)
             // ==========================================
-            if (name === "哺(集)乳室") {
+             if (name === "哺(集)乳室") {
+                // ================= 第一步：鉤子靠嘴 =================
                 if (currentStep === 1) {
-                    if (hand.isHookShape && hand.centerY < 0.6) {
-                        handYHistory.push(hand.centerY);
-                        if (handYHistory.length > 15) handYHistory.shift();
-                        
-                        if (handYHistory.length > 10) {
-                            isWavedLock = true;
-                        }
+                    if (results.multiHandLandmarks.length >= 1) {
+                        const hand = analyzeHandPose(results.multiHandLandmarks[0]);
+                        if (hand.isHookShape && hand.centerY < 0.6) {
+                            handYHistory.push(hand.centerY);
+                            if (handYHistory.length > 15) handYHistory.shift();
+                            
+                            if (handYHistory.length > 10) {
+                                isWavedLock = true;
+                            }
 
-                        if (isWavedLock) {
-                            score = 100; hintMsg = "第一步正確！即將切換影片...";
-                            if (!window.stepTimer) {
-                                window.stepTimer = setTimeout(() => {
-                                    updateToStep(2, name); 
-                                    handYHistory = []; handGatherHistory = [];
-                                    window.stepTimer = null;
-                                }, 1000); 
+                            if (isWavedLock) {
+                                score = 100; hintMsg = "第一步正確！即將切換影片...";
+                                if (!window.stepTimer) {
+                                    window.stepTimer = setTimeout(() => {
+                                        updateToStep(2, name); 
+                                        handYHistory = []; handXHistory = [];
+                                        window.stepTimer = null;
+                                    }, 1000); 
+                                }
+                            } else {
+                                score = 80; hintMsg = "姿勢正確！請保持在嘴巴下方...";
                             }
                         } else {
-                            score = 80; hintMsg = "姿勢正確！請保持在嘴巴下方...";
+                            isWavedLock = false; handYHistory = [];
+                            score = 40; hintMsg = "第一步：請比出食指微彎，放在嘴巴下方";
                         }
                     } else {
-                        isWavedLock = false; handYHistory = [];
-                        score = 40; hintMsg = "第一步：請比出食指微彎(鉤子)，放在嘴巴下方";
-                        clearTimeout(window.stepTimer); window.stepTimer = null;
+                        score = 20; hintMsg = "請將手放在畫面中比出食指微彎手勢";
                     }
                 } 
+                // ================= 第二步：抱嬰擠乳 (預備鎖定 + 擠壓偵測) =================
                 else if (currentStep === 2) {
+                    // 初始化鎖定狀態
+                    if (typeof window.nurseReady === 'undefined') window.nurseReady = false;
+
                     if (results.multiHandLandmarks.length === 2) {
                         const hA = analyzeHandPose(results.multiHandLandmarks[0]);
                         const hB = analyzeHandPose(results.multiHandLandmarks[1]);
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
                         let topHand = hA.centerY < hB.centerY ? hA : hB;
                         let botHand = hA.centerY < hB.centerY ? hB : hA;
 
-                        // 下方手使用放寬版的水平判定
-                        if (botHand.isHorizontal) {
-                            handYHistory.push(topHand.centerY);
-                            handGatherHistory.push(topHand.gatherRatio);
-                            if (handYHistory.length > 20) handYHistory.shift();
-                            if (handGatherHistory.length > 20) handGatherHistory.shift();
+                        const calcRatios = (hand) => {
+                            const wrist = hand.landmarks[0];
+                            return {
+                                idx: getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]),
+                                mid: getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]),
+                                rng: getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]),
+                                pnk: getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17])
+                            };
+                        };
+
+                        const rTop = calcRatios(topHand);
+                        const rBot = calcRatios(botHand);
+
+                        // 🎯 根據你的數據：預備時雙手手指都有明顯伸出 (數值大都在 1.7 ~ 2.6 之間)
+                        // 設定 > 1.4 即可穩定鎖定預備姿勢
+                        const isCradleShape = (r) => (r.idx > 1.4 && r.mid > 1.4 && r.rng > 1.4);
+
+                        // --- 階段一：要求雙手就位並停頓 ---
+                        if (!window.nurseReady) {
+                            if (isCradleShape(rTop) && isCradleShape(rBot)) {
+                                handYHistory.push(topHand.centerY);
+                                if (handYHistory.length > 15) handYHistory.shift();
+                                
+                                if (handYHistory.length > 10) {
+                                    const moveY = Math.max(...handYHistory) - Math.min(...handYHistory);
+                                    
+                                    // 停頓一下 (上下位移 < 0.03) 即可鎖定！
+                                    if (moveY < 0.03) {
+                                        window.nurseReady = true;
+                                        handXHistory = []; // 用來追蹤手指的開合度
+                                        score = 80; hintMsg = "已鎖定！請將上方手「重複擠壓 (手掌開合)」";
+                                    } else {
+                                        score = 60; hintMsg = "請比出抱嬰與擠乳的動作";
+                                    }
+                                } else {
+                                    score = 60; hintMsg = "請比出抱嬰與擠乳的動作";
+                                }
+                            } else {
+                                score = 40; hintMsg = "第二步：一手在下平放(抱嬰)，一手在上微張(準備擠乳)";
+                                handYHistory = [];
+                            }
+                        } 
+                        // --- 階段二：已鎖定，專心抓擠壓動作，無視形狀變形 ---
+                        else {
+                            // 計算上方手的手指伸展總和 (張開時總和大約 8.0~10.0，擠壓時會急遽掉落)
+                            const openScore = rTop.idx + rTop.mid + rTop.rng + rTop.pnk;
                             
-                            if (handGatherHistory.length > 5) {
-                                const maxGather = Math.max(...handGatherHistory);
-                                const squeezeAmount = maxGather - topHand.gatherRatio;
+                            handXHistory.push(openScore);
+                            handYHistory.push(topHand.centerY);
+                            
+                            if (handXHistory.length > 20) handXHistory.shift();
+                            if (handYHistory.length > 20) handYHistory.shift();
+                            
+                            if (handXHistory.length > 5) {
+                                const maxOpen = Math.max(...handXHistory);
+                                const squeezeAmount = maxOpen - openScore;
                                 const moveDown = topHand.centerY - Math.min(...handYHistory);
                                 
-                                // 動態擠壓雷達：只要有瞬間收縮動作且微往下移
-                                if (squeezeAmount > 0.8 && moveDown > 0.01) {
+                                // 🎯 擠壓判定：只要手指有往內抓 (比例總和掉落 > 1.5)，或是手往下擠壓 (>0.03)
+                                if (squeezeAmount > 1.5 || moveDown > 0.03) {
                                     isWavedLock = true;
                                 }
                             }
-
-                            if (isWavedLock) { 
-                                score = 100; hintMsg = "太完美了！這就是哺(集)乳室的手語！"; 
-                            } else { 
-                                score = 80; hintMsg = "準備完成！請將上方手「往下微移並擠壓」"; 
+                            
+                            if (isWavedLock) {
+                                score = 100; hintMsg = "太完美了！這就是哺(集)乳室的手語！";
+                            } else {
+                                score = 80; hintMsg = "已鎖定！請將上方手「重複擠壓 (往內抓合)」";
                             }
-                        } else {
-                            isWavedLock = false; handYHistory = []; handGatherHistory = [];
-                            score = 40; hintMsg = "第二步：下方手請平放胸前 (抱嬰兒狀)";
                         }
                     } else {
-                        isWavedLock = false; handYHistory = []; handGatherHistory = [];
-                        score = 20; hintMsg = "第二步需要雙手一起操作喔！";
+                        // 防呆機制：如果手跑出畫面，解除鎖定重來
+                        if (!isWavedLock) {
+                            window.nurseReady = false; 
+                            handYHistory = []; handXHistory = [];
+                            score = 20; hintMsg = "第二步需要「雙手」都在畫面中配合喔！";
+                        }
                     }
                 }
             }
+
             // ==========================================
             // 🧯 滅火器 (雙步終極修正版：到位才追蹤 + 無視遮蔽)
             // ==========================================
@@ -332,7 +422,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
             }
-           // ==========================================
+          // ==========================================
             // 🗑️ 一般垃圾 (雙步：擦鼻子 -> 往外丟)
             // ==========================================
             else if (name === "一般垃圾") {
@@ -344,12 +434,13 @@ document.addEventListener('DOMContentLoaded', async () => {
                         if (!window.stepTimer) {
                             window.stepTimer = setTimeout(() => {
                                 updateToStep(2, name); 
-                                handYHistory = []; handXHistory = []; platformSizeHistory = [];
+                                handYHistory = []; handXHistory = [];
                                 window.stepTimer = null;
                             }, 1000); 
                         }
                     } 
                     else if (hand.isHookShape && hand.centerY < 0.6) {
+                        // 記錄食指尖的位置
                         handXHistory.push(hand.landmarks[8].x);
                         handYHistory.push(hand.landmarks[8].y); 
                         if (handXHistory.length > 15) handXHistory.shift();
@@ -358,7 +449,8 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const moveX = Math.max(...handXHistory) - Math.min(...handXHistory);
                         const moveY = Math.max(...handYHistory) - Math.min(...handYHistory);
 
-                        if (handXHistory.length > 5 && moveX > 0.03 && moveX > moveY * 0.5) {
+                        // 🎯 關鍵修改 1：將 moveX 門檻從 0.03 提高到 0.06，必須要有「明確的撥動」才會觸發
+                        if (handXHistory.length > 5 && moveX > 0.06 && moveX > moveY * 0.5) {
                             isWavedLock = true;
                         } else {
                             score = 80; hintMsg = "姿勢正確！請在鼻子旁「向外撥動」食指";
@@ -369,125 +461,166 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 } 
                 else if (currentStep === 2) {
+                    const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                    const wrist = hand.landmarks[0];
+                    const idx = getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]);
+                    const mid = getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]);
+                    
+                    // 只要食指、中指沒有明顯伸長，就當作是在握拳準備
+                    const isFistState = (idx < 1.2 && mid < 1.2) || hand.isFist || hand.isLooseFist || hand.isLockerFist;
+                    // 食指、中指有伸直就算張開
+                    const isOpenState = (idx > 1.3 && mid > 1.3);
+
                     if (isWavedLock) {
                         score = 100; hintMsg = "太完美了！這就是一般垃圾的手語！";
                     } 
-                    else if (hand.isFist || hand.isLooseFist) {
-                        handYHistory.push(hand.centerY);
-                        handXHistory.push(hand.centerX);
-                        platformSizeHistory.push(hand.size); 
-                        
-                        if (handYHistory.length > 15) handYHistory.shift();
-                        if (handXHistory.length > 15) handXHistory.shift();
-                        if (platformSizeHistory.length > 15) platformSizeHistory.shift();
-
-                        score = 80; hintMsg = "準備完成！請往外丟並「張開五指」";
+                    else if (isOpenState || hand.isOpenHand) {
+                        // 🎯 關鍵修改 2：只要手掌張開，直接鎖定過關 100%！(不用再計算往前推了)
+                        isWavedLock = true;
                     }
-                    else if (hand.isOpenHand) {
-                        if (handXHistory.length > 5) {
-                            const moveX = Math.abs(handXHistory[0] - hand.centerX);
-                            const moveY = Math.abs(handYHistory[0] - hand.centerY);
-                            const moveSize = Math.abs(hand.size - platformSizeHistory[0]);
-
-                            if (moveX > 0.04 || moveY > 0.04 || moveSize > 0.01) {
-                                isWavedLock = true;
-                            } else {
-                                score = 80; hintMsg = "有張開手掌了！請加上往外「丟」的位移動作";
-                            }
-                        } else {
-                            score = 40; hintMsg = "第二步：請先在胸前「握拳」準備";
-                        }
+                    else if (isFistState) {
+                        score = 80; hintMsg = "準備完成！請往前丟並「張開手掌」";
                     }
                     else {
-                        if (handXHistory.length === 0) {
-                            score = 40; hintMsg = "第二步：請先在胸前「握拳」準備";
-                        }
+                        // 在半開半合的過渡瞬間，維持 80 分
+                        score = 80; hintMsg = "請往前丟並「張開手掌」";
                     }
                 }
             }
-           // ==========================================
+          // ==========================================
             // 🍵 茶水間 (雙步：按飲水機 -> 喝水)
             // ==========================================
-            else if (name === "茶水間") {
+         else if (name === "茶水間") {
                 if (currentStep === 1) {
                     if (results.multiHandLandmarks.length === 2) {
                         const hA = analyzeHandPose(results.multiHandLandmarks[0]);
                         const hB = analyzeHandPose(results.multiHandLandmarks[1]);
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
-                        let thumbH = hA.centerY < hB.centerY ? hA : hB;
-                        let cupH = hA.centerY < hB.centerY ? hB : hA;
+                        const calcRatios = (hand) => {
+                            const wrist = hand.landmarks[0];
+                            return {
+                                thumb: getDist(wrist, hand.landmarks[4]) / getDist(wrist, hand.landmarks[2]),
+                                idx: getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]),
+                                mid: getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]),
+                                rng: getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]),
+                                pnk: getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17])
+                            };
+                        };
 
-                        const isAbove = thumbH.centerY < cupH.centerY;
-                        const isCloseX = Math.abs(thumbH.centerX - cupH.centerX) < 0.3;
+                        const rA = calcRatios(hA);
+                        const rB = calcRatios(hB);
 
-                        if (thumbH.isThumbUp && cupH.isCupShape && isAbove && isCloseX) {
-                            handXHistory.push(thumbH.landmarks[4].x);
-                            handYHistory.push(thumbH.landmarks[4].y);
-                            if (handXHistory.length > 15) handXHistory.shift();
-                            if (handYHistory.length > 15) handYHistory.shift();
-                            
-                            if (handXHistory.length > 5) {
-                                const moveX = Math.max(...handXHistory) - Math.min(...handXHistory);
-                                const moveY = Math.max(...handYHistory) - Math.min(...handYHistory);
+                        const isThumbPress = (r) => (r.thumb > 1.4 && r.idx < 1.0 && r.mid < 1.0 && r.rng < 1.0 && r.pnk < 1.0);
+                        const isCup = (r) => (r.idx > 1.2 && r.mid > 1.2 && r.rng > 1.2 && r.pnk > 1.2);
+
+                        let thumbH = null;
+                        let cupH = null;
+
+                        if (isThumbPress(rA) && isCup(rB)) { thumbH = hA; cupH = hB; }
+                        else if (isThumbPress(rB) && isCup(rA)) { thumbH = hB; cupH = hA; }
+
+                        if (thumbH && cupH) {
+                            const isAbove = thumbH.centerY < cupH.centerY;
+                            const isCloseX = Math.abs(thumbH.centerX - cupH.centerX) < 0.3;
+
+                            if (isAbove && isCloseX) {
+                                // 🎯 關鍵修改：不再追蹤「絕對座標」，改追蹤「大拇指尖到下方杯子的距離」
+                                const pressDist = getDist(thumbH.landmarks[4], cupH.landmarks[9]);
                                 
-                                if (moveX > 0.02 || moveY > 0.02) {
+                                handXHistory.push(pressDist);
+                                platformSizeHistory.push(thumbH.size); // 同時記錄大小，用來判斷往前推
+                                
+                                if (handXHistory.length > 20) handXHistory.shift();
+                                if (platformSizeHistory.length > 20) platformSizeHistory.shift();
+                                
+                                if (handXHistory.length > 5) {
+                                    const maxDist = Math.max(...handXHistory);
+                                    const minSize = Math.min(...platformSizeHistory);
+                                    
+                                    // 判斷 1：往下按 (大拇指到杯子的距離縮短了 0.04 以上)
+                                    // 判斷 2：往前推 (大拇指手部尺寸變大了 0.015 以上)
+                                    if (maxDist - pressDist > 0.04 || thumbH.size - minSize > 0.015) {
+                                        isWavedLock = true;
+                                    }
+                                }
+
+                                if (isWavedLock) { 
+                                    score = 100; hintMsg = "第一步正確！即將切換影片..."; 
+                                    if (!window.stepTimer) {
+                                        window.stepTimer = setTimeout(() => {
+                                            updateToStep(2, name); 
+                                            handXHistory = []; platformSizeHistory = [];
+                                            window.stepTimer = null;
+                                        }, 1000); 
+                                    }
+                                } else { 
+                                    score = 80; hintMsg = "準備完成！請將大拇指「往下按」或「往前推」"; 
+                                }
+                            } else {
+                                if (!isAbove) {
+                                    score = 60; hintMsg = "請把「比讚的手」放在「杯子手」的上方";
+                                } else {
+                                    score = 60; hintMsg = "雙手請稍微靠近一點喔！";
+                                }
+                                isWavedLock = false; handXHistory = []; platformSizeHistory = [];
+                            }
+                        } else {
+                            isWavedLock = false; handXHistory = []; platformSizeHistory = [];
+                            score = 40; hintMsg = "第一步：一手在下比「杯子」，另一手在上比「平放的讚」";
+                        }
+                    } else {
+                        isWavedLock = false; handXHistory = []; platformSizeHistory = [];
+                        score = 20; hintMsg = "第一步需要雙手一起操作喔！";
+                    }
+                }
+                else if (currentStep === 2) {
+                    let foundCupH = null;
+                    if (results.multiHandLandmarks.length >= 1) {
+                        // 尋找畫面中符合你「杯子」特徵的手
+                        for (let i = 0; i < results.multiHandLandmarks.length; i++) {
+                            let h = analyzeHandPose(results.multiHandLandmarks[i]);
+                            const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
+                            const wrist = h.landmarks[0];
+                            const idx = getDist(wrist, h.landmarks[8]) / getDist(wrist, h.landmarks[5]);
+                            const mid = getDist(wrist, h.landmarks[12]) / getDist(wrist, h.landmarks[9]);
+                            const rng = getDist(wrist, h.landmarks[16]) / getDist(wrist, h.landmarks[13]);
+                            const pnk = getDist(wrist, h.landmarks[20]) / getDist(wrist, h.landmarks[17]);
+                            
+                            if (idx > 1.2 && mid > 1.2 && rng > 1.2 && pnk > 1.2) {
+                                foundCupH = h; break;
+                            }
+                        }
+                        
+                        if (foundCupH) {
+                            handYHistory.push(foundCupH.centerY);
+                            if (handYHistory.length > 20) handYHistory.shift();
+                            
+                            if (handYHistory.length > 5) {
+                                const movedUp = Math.max(...handYHistory) - foundCupH.centerY; 
+                                
+                                // 往上喝水：位移大於0.04且高度在嘴巴附近(<0.6)，或者直接把手舉很高(<0.45)
+                                if ((movedUp > 0.04 && foundCupH.centerY < 0.6) || foundCupH.centerY < 0.45) {
                                     isWavedLock = true;
                                 }
                             }
 
                             if (isWavedLock) { 
-                                score = 100; hintMsg = "第一步正確！即將切換影片..."; 
-                                if (!window.stepTimer) {
-                                    window.stepTimer = setTimeout(() => {
-                                        updateToStep(2, name); 
-                                        handYHistory = []; handXHistory = [];
-                                        window.stepTimer = null;
-                                    }, 1000); 
-                                }
+                                score = 100; hintMsg = "太完美了！這就是茶水間的手語！"; 
                             } else { 
-                                score = 80; hintMsg = "準備完成！請將大拇指「往前按」"; 
+                                score = 80; hintMsg = "杯子拿好了！請往上移動做出「喝水」的動作"; 
                             }
                         } else {
-                            isWavedLock = false; handXHistory = []; handYHistory = [];
-                            score = 40; hintMsg = "第一步：一手在下比「杯子」，另一手在上比「平放的讚」";
+                            isWavedLock = false; handYHistory = [];
+                            score = 40; hintMsg = "第二步：請比出「杯子」的形狀準備喝水";
                         }
                     } else {
-                        isWavedLock = false; handXHistory = []; handYHistory = [];
-                        score = 20; hintMsg = "第一步需要雙手一起操作喔！";
-                    }
-                } 
-                else if (currentStep === 2) {
-                    let foundCupH = null;
-                    for (let i = 0; i < results.multiHandLandmarks.length; i++) {
-                        let parsed = analyzeHandPose(results.multiHandLandmarks[i]);
-                        if (parsed.isCupShape) { foundCupH = parsed; break; }
-                    }
-                    if (!foundCupH) foundCupH = analyzeHandPose(results.multiHandLandmarks[0]);
-
-                    if (foundCupH.isCupShape) {
-                        handYHistory.push(foundCupH.centerY);
-                        if (handYHistory.length > 20) handYHistory.shift();
-                        
-                        if (handYHistory.length > 5) {
-                            const movedUp = Math.max(...handYHistory) - foundCupH.centerY; 
-                            
-                            if ((movedUp > 0.04 && foundCupH.centerY < 0.6) || foundCupH.centerY < 0.45) {
-                                isWavedLock = true;
-                            }
-                        }
-
-                        if (isWavedLock) { 
-                            score = 100; hintMsg = "太完美了！這就是茶水間的手語！"; 
-                        } else { 
-                            score = 80; hintMsg = "杯子拿好了！請往上移動做出「喝水」的動作"; 
-                        }
-                    } else {
+                        score = 20; hintMsg = "請在畫面中比出杯子準備喝水";
                         isWavedLock = false; handYHistory = [];
-                        score = 40; hintMsg = "第二步：請比出「杯子」的形狀 (C字型半握拳)";
                     }
                 }
             }
-           // ==========================================
+          // ==========================================
             // ♻️ 資源回收 (雙步：嘴前比框框 -> 從外往內撥)
             // ==========================================
             else if (name === "資源回收") {
@@ -495,12 +628,30 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (results.multiHandLandmarks.length === 2) {
                         const hA = analyzeHandPose(results.multiHandLandmarks[0]);
                         const hB = analyzeHandPose(results.multiHandLandmarks[1]);
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
-                        if (hA.isFrameShape && hB.isFrameShape) {
+                        const calcRatios = (hand) => {
+                            const wrist = hand.landmarks[0];
+                            return {
+                                thumb: getDist(wrist, hand.landmarks[4]) / getDist(wrist, hand.landmarks[2]),
+                                idx: getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]),
+                                mid: getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]),
+                                rng: getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]),
+                                pnk: getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17])
+                            };
+                        };
+
+                        const rA = calcRatios(hA);
+                        const rB = calcRatios(hB);
+
+                        const isFrame = (r) => (r.thumb > 1.3 && r.idx > 1.3 && r.mid < 1.1 && r.rng < 1.1 && r.pnk < 1.1);
+
+                        if (isFrame(rA) && isFrame(rB)) {
                             const highestY = Math.min(hA.centerY, hB.centerY);
                             const isAligned = Math.abs(hA.centerY - hB.centerY) < 0.15;
 
-                            if (highestY < 0.45 && isAligned) {
+                            // 🎯 第一步要求：限制 Y < 0.50，強迫框框必須放在嘴巴/臉部高度
+                            if (highestY < 0.50 && isAligned) {
                                 score = 100; hintMsg = "第一步「框框」正確！即將切換影片...";
                                 if (!window.stepTimer) {
                                     window.stepTimer = setTimeout(() => {
@@ -509,7 +660,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                                     }, 1000); 
                                 }
                             } else {
-                                score = 80; hintMsg = "形狀正確！請將雙手框框「放到嘴巴前面」";
+                                if (!isAligned) {
+                                    score = 80; hintMsg = "形狀正確！請確保雙手高度差不多平齊";
+                                } else {
+                                    // 高度不夠時，明確提示要放到嘴巴前
+                                    score = 80; hintMsg = "形狀正確！請將雙手框框「放到嘴巴前面」";
+                                }
                                 clearTimeout(window.stepTimer); window.stepTimer = null;
                             }
                         } else {
@@ -525,19 +681,44 @@ document.addEventListener('DOMContentLoaded', async () => {
                     if (results.multiHandLandmarks.length === 2) {
                         const hA = analyzeHandPose(results.multiHandLandmarks[0]);
                         const hB = analyzeHandPose(results.multiHandLandmarks[1]);
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
-                        let platHand = hA.centerY > hB.centerY ? hA : hB;
-                        let sweepHand = hA.centerY > hB.centerY ? hB : hA;
+                        // 🎯 針對你的完美數據客製化：只看手指伸展比例，不看手腕角度
+                        const calcRatios = (hand) => {
+                            const wrist = hand.landmarks[0];
+                            return {
+                                idx: getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]),
+                                mid: getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]),
+                                rng: getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]),
+                                pnk: getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17])
+                            };
+                        };
 
-                        const isSeparated = platHand.centerY > sweepHand.centerY + 0.15;
+                        const rA = calcRatios(hA);
+                        const rB = calcRatios(hB);
 
-                        if (platHand.isPlatform && sweepHand.isFlatHand && isSeparated) {
-                            handXHistory.push(sweepHand.centerX); 
+                        // 判斷四指伸直 (>1.3，完美契合你的 1.6~2.8 數據)
+                        const isFlat = (r) => (r.idx > 1.3 && r.mid > 1.3 && r.rng > 1.3 && r.pnk > 1.3);
+
+                        // 分辨上下手
+                        let topHand = hA.centerY < hB.centerY ? hA : hB;
+                        let botHand = hA.centerY < hB.centerY ? hB : hA;
+                        
+                        let rTop = hA.centerY < hB.centerY ? rA : rB;
+                        let rBot = hA.centerY < hB.centerY ? rB : rA;
+
+                        // 確保兩隻手有上下的落差 (> 0.15)
+                        const isSeparated = (botHand.centerY - topHand.centerY) > 0.15;
+
+                        if (isFlat(rTop) && isFlat(rBot) && isSeparated) {
+                            // 專注追蹤「上方手」的水平移動
+                            handXHistory.push(topHand.centerX); 
                             if (handXHistory.length > 20) handXHistory.shift();
                             
                             if (handXHistory.length > 5) {
+                                // 判斷從外往內撥 (X軸有明顯位移，設定 0.05 舒適感最佳)
                                 const moveX = Math.max(...handXHistory) - Math.min(...handXHistory);
-                                if (moveX > 0.06) {
+                                if (moveX > 0.05) {
                                     isWavedLock = true;
                                 }
                             }
@@ -548,8 +729,12 @@ document.addEventListener('DOMContentLoaded', async () => {
                                 score = 80; hintMsg = "準備完成！請將上面那隻手「從外往內撥」"; 
                             }
                         } else {
+                            if (!isSeparated && isFlat(rTop) && isFlat(rBot)) {
+                                score = 60; hintMsg = "請把雙手一上一下分開 (一手在上、一手在下)";
+                            } else {
+                                score = 40; hintMsg = "第二步：下方手平放，上方手「五指伸直」準備撥動";
+                            }
                             isWavedLock = false; handXHistory = [];
-                            score = 40; hintMsg = "第二步：下方手平放，上方手「五指伸直」準備撥動";
                         }
                     } else {
                         isWavedLock = false; handXHistory = [];
@@ -557,257 +742,436 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
             }
-            // ==========================================
-            // 🗄️ 置物櫃 (三步：拉開 -> 點擊 7 -> 疊放)
+        // ==========================================
+            // 🗄️ 置物櫃 (三步：空間拉開 -> 點擊 7 三次 -> 抗遮擋疊放)
             // ==========================================
             else if (name === "置物櫃") {
+                // ================= 第一步：空間感拉開 (導入起始點鎖定機制) =================
                 if (currentStep === 1) {
-                    const hand = analyzeHandPose(results.multiHandLandmarks[0]);
-                    if (hand.isLockerFist) {
-                        handXHistory.push(hand.centerX);
-                        if (handXHistory.length > 20) handXHistory.shift();
+                    // 初始化鎖定狀態
+                    if (typeof window.lockerPullReady === 'undefined') window.lockerPullReady = false;
+
+                    if (results.multiHandLandmarks.length >= 1) {
+                        const hand = analyzeHandPose(results.multiHandLandmarks[0]);
+                        const wrist = hand.landmarks[0];
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
-                        if (handXHistory.length > 10) {
-                            const moveX = Math.abs(handXHistory[0] - hand.centerX);
-                            if (moveX > 0.05) {
-                                isWavedLock = true;
-                            }
-                        }
+                        const idx = getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]);
+                        const mid = getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]);
+                        const rng = getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]);
+                        const pnk = getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17]);
                         
-                        if (isWavedLock) {
-                            score = 100; hintMsg = "第一步開門正確！即將切換...";
-                            if (!window.stepTimer) {
-                                window.stepTimer = setTimeout(() => {
-                                    updateToStep(2, name); 
-                                    handXHistory = []; handYHistory = [];
-                                    window.stepTimer = null;
-                                }, 1000); 
+                        // 🎯 涵蓋所有拳頭：緊握 (數值很小) 或 鬆握 (<2.2) 都能通關
+                        const isAnyFist = (idx < 2.2 && mid < 2.2 && rng < 2.2 && pnk < 2.2) || hand.isFist || hand.isLooseFist || hand.isLockerFist;
+
+                        if (isAnyFist) {
+                            // --- 階段一：要求使用者先停頓，記錄起始點 ---
+                            if (!window.lockerPullReady) {
+                                handXHistory.push(hand.centerX);
+                                if (handXHistory.length > 15) handXHistory.shift();
+                                
+                                if (handXHistory.length > 10) {
+                                    const moveX = Math.max(...handXHistory) - Math.min(...handXHistory);
+                                    
+                                    // 如果手在原地停留 (晃動 < 0.02)，就鎖定並記錄位置！
+                                    if (moveX < 0.02) {
+                                        window.lockerPullReady = true;
+                                        window.lockerStartX = hand.centerX;   // 記錄起始 X 座標
+                                        window.lockerStartSize = hand.size;   // 記錄起始大小 (深度)
+                                        score = 80; hintMsg = "請將拳頭「往外或往旁邊」拉開";
+                                    } else {
+                                        score = 60; hintMsg = "請比出拳頭，放在胸前";
+                                    }
+                                } else {
+                                    score = 60; hintMsg = "請比出拳頭，放在胸前";
+                                }
+                            } 
+                            // --- 階段二：已經鎖定起始點，計算與起始點的落差 ---
+                            else {
+                                const moveX = Math.abs(hand.centerX - window.lockerStartX);
+                                const sizeChange = Math.abs(hand.size - window.lockerStartSize);
+                                
+                                // 往旁邊拉 (X變動 > 0.05) 或 往身體拉 (Size變大 > 0.015)
+                                if (moveX > 0.05 || sizeChange > 0.015) {
+                                    isWavedLock = true;
+                                }
+                                
+                                if (isWavedLock) {
+                                    score = 100; hintMsg = "第一步開門正確！即將切換...";
+                                    if (!window.stepTimer) {
+                                        window.stepTimer = setTimeout(() => {
+                                            updateToStep(2, name); 
+                                            window.lockerPullReady = false; // 切換時重置
+                                            handXHistory = []; 
+                                            window.stepTimer = null;
+                                        }, 1000); 
+                                    }
+                                } else {
+                                    score = 80; hintMsg = "請將拳頭「往外或往旁邊」拉開";
+                                }
                             }
                         } else {
-                            score = 80; hintMsg = "準備完成！請將拳頭「往左/右拉開」";
+                            window.lockerPullReady = false; // 手形跑掉就解除鎖定
+                            isWavedLock = false; handXHistory = [];
+                            score = 40; hintMsg = "第一步：請單手比出拳頭，準備拉門";
+                            clearTimeout(window.stepTimer); window.stepTimer = null;
                         }
                     } else {
-                        isWavedLock = false; handXHistory = [];
-                        score = 40; hintMsg = "第一步：請單手比出「拳頭」";
-                        clearTimeout(window.stepTimer); window.stepTimer = null;
+                        score = 20; hintMsg = "請將手放在畫面中準備";
                     }
                 } 
+                // ================= 第二步：點擊 7 三次 (導入寬鬆變形鎖定) =================
                 else if (currentStep === 2) {
-                    const hand = analyzeHandPose(results.multiHandLandmarks[0]);
-                    if (hand.isSevenShape) {
-                        handYHistory.push(hand.landmarks[8].y);
-                        if (handYHistory.length > 15) handYHistory.shift();
+                    if (typeof window.clickCount === 'undefined') window.clickCount = 0;
+                    if (typeof window.isClickingDown === 'undefined') window.isClickingDown = false;
+                    if (typeof window.sevenReady === 'undefined') window.sevenReady = false;
+
+                    if (results.multiHandLandmarks.length >= 1) {
+                        const hand = analyzeHandPose(results.multiHandLandmarks[0]);
+                        const wrist = hand.landmarks[0];
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
-                        if (handYHistory.length > 10) {
-                            const maxY = Math.max(...handYHistory);
-                            const minY = Math.min(...handYHistory);
-                            const moveY = maxY - minY;
-                            
-                            const maxIdx = handYHistory.indexOf(maxY);
-                            const minIdx = handYHistory.indexOf(minY);
-                            const hasTurnaround = (maxIdx > 1 && maxIdx < 14) || (minIdx > 1 && minIdx < 14);
-                            
-                            if (moveY > 0.02 && hasTurnaround) {
-                                isWavedLock = true;
-                            }
+                        const thumb = getDist(wrist, hand.landmarks[4]) / getDist(wrist, hand.landmarks[2]);
+                        const idx = getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]);
+                        const mid = getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]);
+                        const rng = getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]);
+                        const pnk = getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17]);
+                        
+                        // 1. 初始嚴格鎖定條件 (確保真的是 7)
+                        const isStrictSeven = (thumb > 1.1 && idx > 1.2 && mid < 1.6 && rng < 1.6 && pnk < 1.6);
+                        // 2. 🎯 點擊時的超級寬鬆條件：只要大拇指跟食指還有點樣子 (允許手變平、手指微彎)，就不會斷線！
+                        const isRelaxedSeven = (thumb > 0.8 && idx > 0.8);
+
+                        // 判斷鎖定
+                        if (!window.sevenReady && isStrictSeven) {
+                            window.sevenReady = true;
+                            handYHistory = [];
+                        } else if (window.sevenReady && !isRelaxedSeven) {
+                            window.sevenReady = false; // 只有在手勢完全變形 (例如變拳頭或全張開) 時才解除鎖定
                         }
-                        
-                        if (isWavedLock) {
-                            score = 100; hintMsg = "第二步點擊正確！即將切換...";
-                            if (!window.stepTimer) {
-                                window.stepTimer = setTimeout(() => {
-                                    updateToStep(3, name); 
-                                    handXHistory = []; handYHistory = [];
-                                    window.stepTimer = null;
-                                }, 1000); 
+
+                        if (window.sevenReady) {
+                            const currentTipY = hand.landmarks[8].y;
+                            handYHistory.push(currentTipY);
+                            if (handYHistory.length > 15) handYHistory.shift();
+
+                            if (handYHistory.length > 5) {
+                                const minY = Math.min(...handYHistory);
+                                
+                                // 判斷食指往下點 (超過 0.02)
+                                if (!window.isClickingDown && (currentTipY - minY > 0.02)) {
+                                    window.isClickingDown = true;
+                                    window.lastClickY = currentTipY; 
+                                }
+                                // 判斷食指往上抬起 (超過 0.015)，完成一次點擊！
+                                else if (window.isClickingDown && (window.lastClickY - currentTipY > 0.015)) {
+                                    window.isClickingDown = false;
+                                    window.clickCount++;
+                                    handYHistory = []; 
+                                }
+
+                                if (window.clickCount >= 3) {
+                                    isWavedLock = true;
+                                }
+                            }
+                            
+                            if (isWavedLock) {
+                                score = 100; hintMsg = "點擊 3 次完成！即將切換...";
+                                if (!window.stepTimer) {
+                                    window.stepTimer = setTimeout(() => {
+                                        updateToStep(3, name); 
+                                        window.sevenReady = false; window.clickCount = 0; window.isClickingDown = false;
+                                        handYHistory = []; window.stepTimer = null;
+                                    }, 1000); 
+                                }
+                            } else {
+                                score = 80; 
+                                hintMsg = window.clickCount > 0 ? `已點擊 ${window.clickCount} 次，請繼續點！` : "已鎖定手勢！請用食指「連續點擊 3 次」";
                             }
                         } else {
-                            score = 80; hintMsg = "姿勢正確！請用食指「上下點擊」";
+                            score = 40; hintMsg = "第二步：請先比出標準的「7」讓系統鎖定";
+                            handYHistory = [];
                         }
                     } else {
-                        isWavedLock = false; handYHistory = [];
-                        score = 40; hintMsg = "第二步：請比出「7」(食指、大拇指伸出)";
-                        clearTimeout(window.stepTimer); window.stepTimer = null;
+                        score = 20; hintMsg = "請將手放在畫面中比出「7」";
+                        window.sevenReady = false;
                     }
                 }
-                else if (currentStep === 3) {
+                // ================= 第三步：抗遮擋疊放 =================
+               else if (currentStep === 3) {
+                    // 🎯 關鍵修復 1：嚴格要求必須偵測到「雙手」，斷絕一隻手通關的可能
                     if (results.multiHandLandmarks.length === 2) {
                         const hA = analyzeHandPose(results.multiHandLandmarks[0]);
                         const hB = analyzeHandPose(results.multiHandLandmarks[1]);
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
-                        let topHand = hA.centerY < hB.centerY ? hA : hB;
-                        let botHand = hA.centerY < hB.centerY ? hB : hA;
+                        const calcRatios = (hand) => {
+                            const wrist = hand.landmarks[0];
+                            return {
+                                idx: getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]),
+                                mid: getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]),
+                                rng: getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]),
+                                pnk: getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17])
+                            };
+                        };
+                        const rA = calcRatios(hA);
+                        const rB = calcRatios(hB);
+                        
+                        // 攤平判定：根據你的完美數據 (皆大於 1.7)，我們設定 > 1.3 確保穩定
+                        const isFlat = (r) => (r.idx > 1.3 && r.mid > 1.3 && r.rng > 1.3 && r.pnk > 1.3);
 
-                        const distTotal = Math.hypot(topHand.centerX - botHand.centerX, topHand.centerY - botHand.centerY);
-                        const isOccluded = distTotal < 0.35; 
-
-                        const isTopOkay = topHand.isFlatHand || isOccluded;
-                        const isBotOkay = botHand.isFlatHand || isOccluded;
-
-                        if (isTopOkay && isBotOkay) {
+                        if (isFlat(rA) && isFlat(rB)) {
+                            let topHand = hA.centerY < hB.centerY ? hA : hB;
+                            let botHand = hA.centerY < hB.centerY ? hB : hA;
+                            
+                            // 追蹤雙手掌心距離
+                            const palmDist = getDist(topHand.landmarks[9], botHand.landmarks[9]);
+                            
+                            // 追蹤上方手 Y 座標 (往下蓋) 與 掌心距離 (越蓋越近)
                             handYHistory.push(topHand.centerY);
+                            handXHistory.push(palmDist); 
+                            
                             if (handYHistory.length > 20) handYHistory.shift();
+                            if (handXHistory.length > 20) handXHistory.shift();
                             
                             if (handYHistory.length > 5) {
-                                const moveDown = topHand.centerY - Math.min(...handYHistory);
-                                if (moveDown > 0.04 && isOccluded) {
+                                const minY = Math.min(...handYHistory);
+                                
+                                // 🎯 關鍵修復 2：上方手必須往下移動 (>0.04) 且 最終雙手掌心距離要夠近 
+                                // (設定 < 0.15，完美吻合你提供的 0.120 數據)
+                                if (topHand.centerY - minY > 0.04 && palmDist < 0.15) {
                                     isWavedLock = true;
                                 }
                             }
 
                             if (isWavedLock) { 
-                                score = 100; hintMsg = "太完美了！這就是置物櫃的手語！"; 
+                                score = 100; hintMsg = "太完美了！這就是置物櫃的完整手語！"; 
                             } else { 
-                                score = 80; hintMsg = "準備好後，請將上方的手「往下拍合」"; 
+                                score = 80; hintMsg = "準備好後，請將上方的手「往下蓋到下方手上」"; 
                             }
                         } else {
-                            isWavedLock = false; handYHistory = [];
-                            score = 40; hintMsg = "第三步：請將雙手攤平，一上一下準備";
+                            isWavedLock = false; handYHistory = []; handXHistory = [];
+                            score = 40; hintMsg = "第三步：請將「雙手」攤平，一上一下準備拍合";
                         }
                     } else {
-                        isWavedLock = false; handYHistory = [];
-                        score = 20; hintMsg = "第三步需要雙手一起操作喔！";
+                        isWavedLock = false; handYHistory = []; handXHistory = [];
+                        score = 20; hintMsg = "第三步：必須在畫面中看到「雙手」喔！";
                     }
                 }
             }
-
-        // ==========================================
-            // 📚 圖書館 (三步：翻書 -> 比二往內收 -> 微彎往下)
+      // ==========================================
+            // 📚 圖書館 (三步：先合再開翻書 -> 比二往內收 -> 微彎往下)
             // ==========================================
             else if (name === "圖書館") {
+                // ================= 第一步：翻書 (抗遮擋：先合再開) =================
                 if (currentStep === 1) {
-                    let currentDist = 1.0; 
-                    let isShapeValid = false;
+                    // 初始化翻書鎖定狀態
+                    if (typeof window.libBookReady === 'undefined') window.libBookReady = false;
 
-                    if (results.multiHandLandmarks.length === 2) {
+                    const numHands = results.multiHandLandmarks.length;
+
+                    if (numHands >= 1) {
                         const hA = analyzeHandPose(results.multiHandLandmarks[0]);
-                        const hB = analyzeHandPose(results.multiHandLandmarks[1]);
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
-                        // 放寬形狀判定：只要沒握拳就算攤平
-                        isShapeValid = (!hA.isFist && !hA.isLockerFist) && (!hB.isFist && !hB.isLockerFist);
-                        currentDist = Math.abs(hA.centerX - hB.centerX);
-                    } 
-                    else if (results.multiHandLandmarks.length === 1) {
-                        // 雙手重疊時的準備動作
-                        currentDist = 0; 
-                        isShapeValid = true; 
-                    }
+                        // 寬鬆攤平判定 (不握拳即可)
+                        const checkFlat = (hand) => {
+                            const wrist = hand.landmarks[0];
+                            const idx = getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]);
+                            const mid = getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]);
+                            return (idx > 1.2 && mid > 1.2); 
+                        };
 
-                    if (isShapeValid) {
-                        handXHistory.push(currentDist);
-                        if (handXHistory.length > 30) handXHistory.shift(); // 加長記憶時間到 30 幀
-
-                        const minDist = Math.min(...handXHistory);
-                        
-                        // 判斷翻書：曾經合起來 (< 0.1)，且現在拉開超過 0.06 (降低難度)
-                        if (results.multiHandLandmarks.length === 2 && handXHistory.length > 5) {
-                            if (minDist < 0.1 && (currentDist - minDist > 0.06)) {
-                                isWavedLock = true;
+                        // --- 階段一：要求雙手先「合併靠攏」 ---
+                        if (!window.libBookReady) {
+                            let isMerged = false;
+                            
+                            // 🎯 智慧抗遮擋：如果只抓到一隻手，但形狀是攤平的，我們就假設這是「雙手完美合十」被遮擋了！
+                            if (numHands === 1) {
+                                if (checkFlat(hA)) isMerged = true;
+                            } 
+                            // 正常情況下看到兩隻手，則判斷距離是否夠近
+                            else if (numHands === 2) {
+                                const hB = analyzeHandPose(results.multiHandLandmarks[1]);
+                                const palmDist = getDist(hA.landmarks[9], hB.landmarks[9]);
+                                if (checkFlat(hA) && checkFlat(hB) && palmDist < 0.15) {
+                                    isMerged = true;
+                                }
                             }
-                        }
 
-                        if (isWavedLock) {
-                            score = 100; hintMsg = "第一步正確！即將切換...";
-                            if (!window.stepTimer) {
-                                window.stepTimer = setTimeout(() => {
-                                    updateToStep(2, name);
-                                    handXHistory = []; platformSizeHistory = []; window.stepTimer = null;
-                                }, 1000);
-                            }
-                        } else {
-                            if (currentDist < 0.08) {
-                                score = 80; hintMsg = "準備完成！請將雙手「向外打開」模擬翻書";
+                            if (isMerged) {
+                                // 給予一點緩衝避免閃爍
+                                handXHistory.push(1);
+                                if (handXHistory.length > 15) handXHistory.shift();
+                                
+                                if (handXHistory.length > 5) {
+                                    window.libBookReady = true;
+                                    score = 80; hintMsg = "已鎖定！請像翻書一樣將雙手「往外打開」";
+                                } else {
+                                    score = 60; hintMsg = "雙手已靠攏，請「停頓一下」讓系統鎖定";
+                                }
                             } else {
-                                score = 60; hintMsg = "請先將雙手「合併」在胸前";
+                                handXHistory = [];
+                                score = 60; hintMsg = "請先將雙手「攤平並合併靠攏」準備翻書";
+                            }
+                        } 
+                        // --- 階段二：雙手往外打開 ---
+                        else {
+                            // 只要打開時看到兩隻手，並且距離拉開，就算翻書成功！
+                            if (numHands === 2) {
+                                const hB = analyzeHandPose(results.multiHandLandmarks[1]);
+                                const palmDist = getDist(hA.landmarks[9], hB.landmarks[9]);
+                                
+                                // 拉開距離大於 0.2 就算打開
+                                if (palmDist > 0.2) {
+                                    isWavedLock = true;
+                                }
+                            }
+                            
+                            if (isWavedLock) {
+                                score = 100; hintMsg = "第一步翻書正確！即將切換...";
+                                if (!window.stepTimer) {
+                                    window.stepTimer = setTimeout(() => {
+                                        updateToStep(2, name);
+                                        window.libBookReady = false; 
+                                        handXHistory = []; window.stepTimer = null;
+                                    }, 1000);
+                                }
+                            } else {
+                                score = 80; hintMsg = "已鎖定！請像翻書一樣將雙手「往外打開」";
                             }
                         }
                     } else {
-                        score = 40; hintMsg = "第一步：請將雙手「攤平」合併，再向外打開";
-                        // 🎯 拿掉清空軌跡的程式碼，終止瘋狂閃爍！
+                        window.libBookReady = false; handXHistory = []; isWavedLock = false;
+                        score = 20; hintMsg = "第一步：請將手放在畫面中準備";
                     }
                 }
+                // ================= 第二步：比二往內收 (指尖碰觸 + 深度偵測) =================
                 else if (currentStep === 2) {
-                    const hand = analyzeHandPose(results.multiHandLandmarks[0]);
-                    const wrist = hand.landmarks[0];
-                    const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
-                    
-                    const indexRatio = getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]);
-                    const ringRatio = getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]);
-                    const pinkyRatio = getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17]);
-                    const thumbToMiddleMid = getDist(hand.landmarks[4], hand.landmarks[10]) / hand.size;
+                    // 初始化內收鎖定狀態
+                    if (typeof window.libInwardReady === 'undefined') window.libInwardReady = false;
 
-                    // 放寬比例要求，對抗動態模糊
-                    const isLibStep2Shape = (indexRatio > 0.9) && (ringRatio < 1.3) && (pinkyRatio < 1.3) && (thumbToMiddleMid < 0.4);
-                    
-                    if (isLibStep2Shape) {
-                        platformSizeHistory.push(hand.size);
-                        handYHistory.push(hand.centerY); // 加上 Y 軸軌跡追蹤
-                        if (platformSizeHistory.length > 20) platformSizeHistory.shift();
-                        if (handYHistory.length > 20) handYHistory.shift();
+                    if (results.multiHandLandmarks.length >= 1) {
+                        const hand = analyzeHandPose(results.multiHandLandmarks[0]);
+                        const wrist = hand.landmarks[0];
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
 
-                        const maxSize = Math.max(...platformSizeHistory);
-                        const minY = Math.min(...handYHistory);
+                        const idx = getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]);
+                        const mid = getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]);
+                        const rng = getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]);
+                        const pnk = getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17]);
                         
-                        // 雙重判定：手部變小 (0.005 極小閾值) 或是 微微往下掉 (0.02)，只要中一個就過關
-                        if (platformSizeHistory.length > 5) {
-                            if ((maxSize - hand.size > 0.005) || (hand.centerY - minY > 0.02)) {
-                                isWavedLock = true;
-                            }
-                        }
+                        // 🎯 判斷大拇指靠在中指上 (大拇指尖端 4，到中指第二關節 10 的距離)
+                        const thumbToMid = getDist(hand.landmarks[4], hand.landmarks[10]) / hand.size;
 
-                        if (isWavedLock) {
-                            score = 100; hintMsg = "第二步正確！即將切換...";
-                            if (!window.stepTimer) {
-                                window.stepTimer = setTimeout(() => {
-                                    updateToStep(3, name);
-                                    platformSizeHistory = []; handYHistory = []; window.stepTimer = null;
-                                }, 1000);
+                        // 判斷形狀：食指、中指伸出，無名、小指收合，且大拇指靠在中指 (<0.6 為寬鬆容錯)
+                        const isTwoShape = (idx > 1.2 && mid > 1.2 && rng < 1.5 && pnk < 1.5 && thumbToMid < 0.6);
+
+                        if (isTwoShape) {
+                            // --- 階段一：要求在胸前定格鎖定 ---
+                            if (!window.libInwardReady) {
+                                platformSizeHistory.push(hand.size);
+                                if (platformSizeHistory.length > 15) platformSizeHistory.shift();
+
+                                if (platformSizeHistory.length > 10) {
+                                    const sizeChange = Math.max(...platformSizeHistory) - Math.min(...platformSizeHistory);
+                                    
+                                    if (sizeChange < 0.005) { 
+                                        window.libInwardReady = true;
+                                        score = 80; hintMsg = "手勢正確！請將手「往身體方向移動」";
+                                    } else {
+                                        score = 60; hintMsg = "手勢正確！請在胸前「停頓一下」讓系統鎖定";
+                                    }
+                                } else {
+                                    score = 60; hintMsg = "手勢正確！請在胸前「停頓一下」讓系統鎖定";
+                                }
+                            } 
+                            // --- 階段二：偵測往內收 (深度變遠) ---
+                            else {
+                                // 持續記錄大小軌跡
+                                platformSizeHistory.push(hand.size);
+                                if (platformSizeHistory.length > 20) platformSizeHistory.shift();
+
+                                if (platformSizeHistory.length > 5) {
+                                    const maxSize = Math.max(...platformSizeHistory);
+                                    
+                                    // 🎯 深度魔法：當手往身體方向收時，會離鏡頭變遠，Size 就會縮小
+                                    // 只要歷史最大值 減去 現在的大小 > 0.012，就算成功往身體移動！
+                                    if (maxSize - hand.size > 0.012) {
+                                        isWavedLock = true;
+                                    }
+                                }
+
+                                if (isWavedLock) {
+                                    score = 100; hintMsg = "第二步內收正確！即將切換...";
+                                    if (!window.stepTimer) {
+                                        window.stepTimer = setTimeout(() => {
+                                            updateToStep(3, name);
+                                            window.libInwardReady = false;
+                                            platformSizeHistory = []; window.stepTimer = null;
+                                        }, 1000);
+                                    }
+                                } else {
+                                    score = 80; hintMsg = "已鎖定！請將手「往身體方向移動」(離鏡頭變遠)";
+                                }
                             }
                         } else {
-                            score = 80; hintMsg = "姿勢正確！請將手「往身體方向內收」";
+                            window.libInwardReady = false; platformSizeHistory = []; isWavedLock = false;
+                            
+                            // 💡 智能除錯提示
+                            if (idx > 1.2 && mid > 1.2 && thumbToMid >= 0.6) {
+                                score = 60; hintMsg = "請記得把「大拇指」靠在「中指」上喔！";
+                            } else {
+                                score = 40; hintMsg = "第二步：請比出「2」，並將大拇指靠在中指上";
+                            }
                         }
                     } else {
-                        score = 40; hintMsg = "第二步：請比出「2」並將大拇指靠在中指，指尖朝前";
-                        // 🎯 同樣拿掉清空軌跡的設定，穩定 UI 狀態！
+                        window.libInwardReady = false; platformSizeHistory = []; isWavedLock = false;
+                        score = 20; hintMsg = "請將手放在畫面中比出「2」";
                     }
                 }
-             else if (currentStep === 3) {
-                    const hand = analyzeHandPose(results.multiHandLandmarks[0]);
-                    const wrist = hand.landmarks[0];
-                    const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
-                    
-                    const indexRatio = getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]);
-                    const middleRatio = getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]);
-                    const ringRatio = getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]);
-                    const pinkyRatio = getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17]);
-
-                    // 根據你的黃金數據，往下蓋時比例會飆高，我們設定 > 1.5 就能完美抓到這個特徵
-                    const isLibStep3Shape = (indexRatio > 1.5) && (middleRatio > 1.5) && (ringRatio > 1.5) && (pinkyRatio > 1.5);
-
-                    if (isLibStep3Shape) {
-                        handYHistory.push(hand.centerY);
-                        if (handYHistory.length > 20) handYHistory.shift();
-
-                        const minY = Math.min(...handYHistory);
+                // ================= 第三步：地方 (往下移動) =================
+                else if (currentStep === 3) {
+                    if (results.multiHandLandmarks.length >= 1) {
+                        const hand = analyzeHandPose(results.multiHandLandmarks[0]);
+                        const wrist = hand.landmarks[0];
+                        const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
-                        // 判斷往下蓋：Y 軸座標變大 (往下移動超過 0.04)
-                        if (handYHistory.length > 5 && (hand.centerY - minY > 0.04)) {
-                            isWavedLock = true;
-                        }
+                        const idx = getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]);
+                        const mid = getDist(wrist, hand.landmarks[12]) / getDist(wrist, hand.landmarks[9]);
+                        const rng = getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]);
+                        const pnk = getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17]);
 
-                        if (isWavedLock) {
-                            score = 100; hintMsg = "太完美了！這就是圖書館的完整手語！";
+                        // 判斷四指伸出 (攤平往下蓋)
+                        const isPlaceShape = (idx > 1.3 && mid > 1.3 && rng > 1.3 && pnk > 1.3);
+
+                        if (isPlaceShape) {
+                            handYHistory.push(hand.centerY);
+                            if (handYHistory.length > 20) handYHistory.shift();
+
+                            if (handYHistory.length > 5) {
+                                const minY = Math.min(...handYHistory);
+                                // 判斷往下蓋 (Y 座標變大)
+                                if (hand.centerY - minY > 0.04) {
+                                    isWavedLock = true;
+                                }
+                            }
+
+                            if (isWavedLock) {
+                                score = 100; hintMsg = "太完美了！這就是圖書館的完整手語！";
+                            } else {
+                                score = 80; hintMsg = "姿勢正確！請將手「往下移動」比出地方";
+                            }
                         } else {
-                            score = 80; hintMsg = "姿勢正確！請將手「往下移動」比出地方";
+                            score = 40; hintMsg = "第三步：請將手心朝下攤平，準備往下蓋";
+                            isWavedLock = false; handYHistory = [];
                         }
                     } else {
-                        score = 40; hintMsg = "第三步：請將手心朝下攤平，準備往下蓋";
-                        // 繼續維持抗閃爍設定，不清空軌跡
-                        isWavedLock = false;
+                        score = 20; hintMsg = "請將手放在畫面中比出地方";
+                        isWavedLock = false; handYHistory = [];
                     }
                 }
             }
-
   // ==========================================
             // 🏟️ 體育館 (雙步：舉啞鈴 -> 往下蓋(地方))
             // ==========================================
@@ -1131,7 +1495,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                             if (isWavedLock) {
                                 score = 100; hintMsg = "太完美了！這就是公園的完整手語！";
                             } else {
-                                score = 80; hintMsg = "姿勢正確！請將雙手「前後擺動」模擬鞦韆";
+                                score = 80; hintMsg = "姿勢正確！請將雙手「前後擺動」";
                             }
                         } else {
                             score = 40; hintMsg = "第二步：請將雙手放在胸前平齊，準備前後擺動";
@@ -1622,14 +1986,17 @@ document.addEventListener('DOMContentLoaded', async () => {
                         isWavedLock = false; handXHistory = []; handYHistory = [];
                     }
                 }
+        // ================= 第二步：握粗管子往左右拉開 =================
                 else if (currentStep === 2) {
+                    // 初始化鎖定狀態
+                    if (typeof window.platformPullReady === 'undefined') window.platformPullReady = false;
+
                     if (results.multiHandLandmarks.length === 2) {
                         const hA = analyzeHandPose(results.multiHandLandmarks[0]);
                         const hB = analyzeHandPose(results.multiHandLandmarks[1]);
                         const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
                         
-                        // 🎯 檢查是否為「握住粗管子的鬆拳頭」
-                        // 容忍度放寬，只要四指有微彎 (< 1.2) 就算過關，不強調大拇指的形狀
+                        // 🎯 專屬形狀判定：完美兼容「鬆拳頭」與「你的透視變形數據」
                         const checkPlatformShape = (hand) => {
                             const wrist = hand.landmarks[0];
                             const idx = getDist(wrist, hand.landmarks[8]) / getDist(wrist, hand.landmarks[5]);
@@ -1637,36 +2004,70 @@ document.addEventListener('DOMContentLoaded', async () => {
                             const rng = getDist(wrist, hand.landmarks[16]) / getDist(wrist, hand.landmarks[13]);
                             const pnk = getDist(wrist, hand.landmarks[20]) / getDist(wrist, hand.landmarks[17]);
                             
-                            return (idx < 1.2 && mid < 1.2 && rng < 1.2 && pnk < 1.2);
+                            // 情況 1：鬆鬆的拳頭 (所有手指比例 < 2.2)
+                            const isLooseFist = (idx < 2.2 && mid < 2.2 && rng < 2.2 && pnk < 2.2);
+                            
+                            // 情況 2：你的專屬視角數據 (因為透視關係，中/無/小指比例飆高到 2.0 ~ 6.0)
+                            const isCameraFacing = (mid > 1.8 && rng > 1.8);
+
+                            return isLooseFist || isCameraFacing;
                         };
 
-                        if (checkPlatformShape(hA) && checkPlatformShape(hB)) {
-                            // 追蹤雙手 X 軸的距離
-                            const distX = Math.abs(hA.centerX - hB.centerX);
-                            handXHistory.push(distX);
-                            if (handXHistory.length > 20) handXHistory.shift();
+                        const yDiff = Math.abs(hA.centerY - hB.centerY);
+                        const distX = Math.abs(hA.centerX - hB.centerX);
 
-                            if (handXHistory.length > 5) {
-                                const minDist = Math.min(...handXHistory);
+                        // --- 階段一：要求雙手平齊並停頓，進入鎖定 ---
+                        if (!window.platformPullReady) {
+                            // 確保雙手高度差不多 (yDiff < 0.2)，且形狀符合
+                            if (yDiff < 0.2 && checkPlatformShape(hA) && checkPlatformShape(hB)) {
+                                handXHistory.push(distX);
+                                if (handXHistory.length > 15) handXHistory.shift();
                                 
-                                // 判斷往左右拉開：雙手距離變大超過 0.08
-                                if (distX - minDist > 0.08) {
-                                    isWavedLock = true;
+                                if (handXHistory.length > 10) {
+                                    const moveDist = Math.max(...handXHistory) - Math.min(...handXHistory);
+                                    
+                                    // 停頓一下 (距離變化 < 0.03) 即可鎖定！
+                                    if (moveDist < 0.03) {
+                                        window.platformPullReady = true;
+                                        window.platformStartDist = distX; // 記錄起始距離
+                                        score = 80; hintMsg = "已鎖定！請將雙手「向左右兩側拉開」";
+                                    } else {
+                                        score = 60; hintMsg = "請比出「握管子」手勢，放在胸前";
+                                    }
+                                } else {
+                                    score = 60; hintMsg = "請比出「握管子」手勢，放在胸前";
                                 }
+                            } else {
+                                if (yDiff >= 0.2) {
+                                    score = 60; hintMsg = "請將雙手放在「差不多高」的位置對齊";
+                                } else {
+                                    score = 40; hintMsg = "第二步：請雙手比出「握管子」手勢";
+                                }
+                                handXHistory = [];
                             }
-
+                        } 
+                        // --- 階段二：已鎖定，只看拉開距離，無視手指變形 ---
+                        else {
+                            const currentDist = distX;
+                            
+                            // 只要現在的距離 比 起始距離 大超過 0.08，就算拉開成功！
+                            if (currentDist - window.platformStartDist > 0.08) {
+                                isWavedLock = true;
+                            }
+                            
                             if (isWavedLock) {
                                 score = 100; hintMsg = "太完美了！這就是月台的完整手語！";
                             } else {
-                                score = 80; hintMsg = "姿勢正確！請將雙手「向左右兩側拉開」";
+                                score = 80; hintMsg = "已鎖定！請將雙手「向左右兩側拉開」";
                             }
-                        } else {
-                            score = 40; hintMsg = "第二步：請雙手比出「月台」的樣子放在胸前";
-                            isWavedLock = false; handXHistory = [];
                         }
                     } else {
-                        score = 20; hintMsg = "第二步需要「雙手」配合喔！";
-                        isWavedLock = false; handXHistory = [];
+                        // 如果手跑出鏡頭，解除鎖定
+                        if (!isWavedLock) {
+                            window.platformPullReady = false; 
+                            handXHistory = [];
+                            score = 20; hintMsg = "第二步需要「雙手」都在畫面中配合喔！";
+                        }
                     }
                 }
             }
@@ -1878,10 +2279,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                     }
                 }
                 // ================= 第二步：雙眼檢查 (左右搖晃) =================
-      else if (currentStep === 2) {
-                    // 初始化檢查準備狀態
-                    if (typeof window.inspectReady === 'undefined') window.inspectReady = false;
-
+     else if (currentStep === 2) {
                     if (results.multiHandLandmarks.length >= 1) {
                         const hand = analyzeHandPose(results.multiHandLandmarks[0]);
                         const getDist = (p1, p2) => Math.hypot(p1.x - p2.x, p1.y - p2.y);
@@ -1901,65 +2299,38 @@ document.addEventListener('DOMContentLoaded', async () => {
                         const isInspectShape = (r.idx > 1.2 && r.mid > 1.2 && r.rng < 1.2 && r.pnk < 1.2);
                         
                         if (isInspectShape) {
+                            // 🎯 拔除停頓要求，直接開始記錄軌跡！
+                            handXHistory.push(hand.centerX);
+                            if (handXHistory.length > 20) handXHistory.shift();
                             
-                            // --- 階段 2-1: 還沒就位，要求使用者先「停頓一下」 ---
-                            if (!window.inspectReady) {
-                                handXHistory.push(hand.centerX);
-                                if (handXHistory.length > 15) handXHistory.shift();
+                            if (handXHistory.length > 5) {
+                                const moveX = Math.max(...handXHistory) - Math.min(...handXHistory);
                                 
-                                // 收集到足夠的幀數來判斷穩定度
-                                if (handXHistory.length > 10) {
-                                    const moveX = Math.max(...handXHistory) - Math.min(...handXHistory);
-                                    
-                                    // 💡 如果手在原地停留 (位移 < 0.03)，就鎖定準備狀態！
-                                    if (moveX < 0.03) {
-                                        window.inspectReady = true;
-                                        handXHistory = []; // 清空剛剛舉起手的軌跡，準備記錄真正的搖晃
-                                        score = 80; hintMsg = "檢查已就緒！請在眼睛前「左右搖晃」";
-                                    } else {
-                                        score = 60; hintMsg = "請把彎彎的「2」放在眼睛前面，先「停頓一下」";
-                                    }
-                                } else {
-                                    score = 60; hintMsg = "請把彎彎的「2」放在眼睛前面，先「停頓一下」";
+                                // 只要左右搖晃超過 0.05 就算過關
+                                if (moveX > 0.05) {
+                                    isWavedLock = true;
                                 }
-                            } 
-                            // --- 階段 2-2: 已經就定位，開始偵測左右搖晃 ---
-                            else {
-                                handXHistory.push(hand.centerX);
-                                if (handXHistory.length > 20) handXHistory.shift();
-                                
-                                if (handXHistory.length > 5) {
-                                    const moveX = Math.max(...handXHistory) - Math.min(...handXHistory);
-                                    
-                                    // 只要左右搖晃超過 0.05 就算過關
-                                    if (moveX > 0.05) {
-                                        isWavedLock = true;
-                                    }
+                            }
+                            
+                            if (isWavedLock) {
+                                score = 100; hintMsg = "第二步檢查正確！即將切換...";
+                                if (!window.stepTimer) {
+                                    window.stepTimer = setTimeout(() => {
+                                        updateToStep(3, name);
+                                        handXHistory = []; window.stepTimer = null;
+                                    }, 1000);
                                 }
-                                
-                                if (isWavedLock) {
-                                    score = 100; hintMsg = "第二步檢查正確！即將切換...";
-                                    if (!window.stepTimer) {
-                                        window.stepTimer = setTimeout(() => {
-                                            updateToStep(3, name);
-                                            window.inspectReady = false; // 切換步驟時重置
-                                            handXHistory = []; window.stepTimer = null;
-                                        }, 1000);
-                                    }
-                                } else {
-                                    score = 80; hintMsg = "檢查已就緒！請「左右搖晃」手勢";
-                                }
+                            } else {
+                                score = 80; hintMsg = "檢查已就緒！請在眼睛前「左右搖晃」";
                             }
                         } else {
                             score = 40; hintMsg = "第二步：請比出彎彎的「2」放在眼睛前面";
                             isWavedLock = false;
-                            window.inspectReady = false; // 形狀一跑掉就解除準備狀態
                             handXHistory = [];
                         }
                     } else {
                         score = 20; hintMsg = "請將手放在鏡頭前比出檢查手勢";
                         isWavedLock = false;
-                        window.inspectReady = false; 
                         handXHistory = [];
                     }
                 }
@@ -2285,7 +2656,7 @@ document.addEventListener('DOMContentLoaded', async () => {
                                         }, 1000);
                                     }
                                 } else {
-                                    score = 80; hintMsg = "姿勢正確！請在嘴巴前「微動一下」模擬抽菸";
+                                    score = 80; hintMsg = "姿勢正確！請在嘴巴前模擬抽菸";
                                 }
                             } else {
                                 score = 60; hintMsg = "請把「2」舉高，放到「嘴巴前面」喔！";
@@ -2871,7 +3242,9 @@ document.addEventListener('DOMContentLoaded', async () => {
             isWavedLock = false;
             platformYHistory = []; platformSizeHistory = [];
 
-            if (currentStep !== 1) updateToStep(1, name);
+            // 🎯 刪除原本的 if (currentStep !== 1) updateToStep(1, name);
+            // 讓手放下來時步驟不重置，接續練習！
+            
             if (webcamDimOverlay) webcamDimOverlay.classList.remove('hidden');
         }
 
@@ -2880,6 +3253,48 @@ document.addEventListener('DOMContentLoaded', async () => {
             accuracyText.innerText = `${score}%`;
             teachInstruction.innerText = hintMsg;
             teachInstruction.style.color = (score === 100) ? "#00B4FF" : "#4A4A4A";
+
+            // 🎯 新增：自動切換下一個圖標邏輯
+            // 🎯 新增：自動切換下一個圖標邏輯
+            const totalStepsForIcon = SIGN_STEPS[name] || 1;
+            
+            if (score === 100 && currentStep === totalStepsForIcon) {
+                isTransitioningIcon = true; // 鎖定狀態
+                teachInstruction.innerText = hintMsg + " (即將進入下一個圖標...)";
+                
+                setTimeout(() => {
+                    // 🎯 關鍵修復：把 innerText 改成 textContent，才能抓到隱藏選單裡的字！
+                    const allIcons = Array.from(document.querySelectorAll('.icon-name')).map(el => el.textContent.trim());
+                    const currentIndex = allIcons.indexOf(name);
+                    
+                    if (currentIndex !== -1 && currentIndex < allIcons.length - 1) {
+                        // 抓取下一個圖標
+                        const nextIcon = allIcons[currentIndex + 1];
+                        
+                        // 替換畫面上的標題與圖片
+                        if (teachTitle) teachTitle.innerText = nextIcon;
+                        const descImg = document.querySelector('.teach-desc-img');
+                        if (descImg) descImg.src = `teach/${nextIcon}_圖標說明.png`;
+                        
+                        // 清空所有歷史軌跡
+                        clearTimeout(window.stepTimer); window.stepTimer = null;
+                        platformYHistory = []; platformSizeHistory = []; 
+                        handXHistory = []; handYHistory = []; handGatherHistory = [];
+                        
+                        // 🎯 新增防呆：重置所有特殊圖標的狀態，避免連續練習時卡死
+                        window.schoolRoofDone = false; window.airplaneReady = false; 
+                        window.trainReady = false; window.customsAirplaneReady = false; 
+                        window.inspectReady = false; window.touchReady = false;
+                        
+                        // 進入下一個圖標的第 1 步
+                        updateToStep(1, nextIcon);
+                        updateVideoLayers();
+                    } else {
+                        teachInstruction.innerText = "太棒了！所有圖標都練習完了！";
+                    }
+                    isTransitioningIcon = false; // 解除鎖定
+                }, 2000); 
+            }
         }
     }
 
@@ -2905,17 +3320,25 @@ document.addEventListener('DOMContentLoaded', async () => {
         this.querySelector('img').src = isHandActive ? "PNG/手勢按鈕_藍.png" : "PNG/手勢按鈕_白.png";
         updateVideoLayers();
     });
-
-    document.querySelectorAll('.icon-item').forEach(item => {
+document.querySelectorAll('.icon-item').forEach(item => {
         item.addEventListener('click', () => {
-            const name = item.querySelector('.icon-name').innerText.trim();
+            // 使用者手動點擊時，強制解除切換鎖定
+            isTransitioningIcon = false; 
+
+            // 🎯 這裡也一併改成 textContent
+            const name = item.querySelector('.icon-name').textContent.trim();
             if (teachTitle) teachTitle.innerText = name;
             const descImg = document.querySelector('.teach-desc-img');
             if (descImg) descImg.src = `teach/${name}_圖標說明.png`;
 
+            // 清空所有歷史軌跡與特殊鎖定狀態
             clearTimeout(window.stepTimer); window.stepTimer = null;
             platformYHistory = []; platformSizeHistory = []; 
             handXHistory = []; handYHistory = []; handGatherHistory = [];
+            window.schoolRoofDone = false; window.airplaneReady = false; 
+            window.trainReady = false; window.customsAirplaneReady = false; 
+            window.inspectReady = false; window.touchReady = false;
+            
             updateToStep(1, name);
 
             updateVideoLayers();

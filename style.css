@@ -151,11 +151,60 @@ body {
 ::-webkit-scrollbar { display: none; }
 html, body { -ms-overflow-style: none; scrollbar-width: none; }
 
-/* 介紹頁面 */
-.intro-page { background-color: #00E1FF; }
-.intro-container { position: relative; width: 100%; }
-.intro-bg-img { width: 100%; display: block; }
+/* =========================================
+   介紹頁面 (Intro Page) - 滿版影片與圖片重疊
+   ========================================= */
+.intro-page { 
+    background-color: #00E1FF; 
+    overflow: hidden; 
+    height: 100vh; 
+    width: 100vw; 
+    margin: 0; 
+    padding: 0; 
+}
 
+.intro-container { 
+    position: relative; 
+    width: 100vw; 
+    height: 100vh; 
+    overflow: hidden; 
+}
+
+/* 滿版背景影片 */
+.intro-bg-video {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 確保影片填滿畫面不變形 */
+    z-index: 1;
+}
+
+/* 滿版疊加 PNG 圖片 */
+.intro-overlay-img {
+    position: absolute;
+    top: 0;
+    left: 0;
+    width: 100%;
+    height: 100%;
+    object-fit: cover; /* 確保圖片與影片完美重疊 */
+    z-index: 2;
+    pointer-events: none; /* 💡 關鍵：讓滑鼠點擊可以穿透圖片，才按得到底下的按鈕 */
+}
+
+/* 確保按鈕永遠在最上層 */
+.intro-container .next-btn {
+    position: absolute;
+    bottom: 5%; 
+    left: 50%;
+    transform: translateX(-50%); 
+    width: 330px; 
+    max-width: 80%; 
+    cursor: pointer; 
+    transition: transform 0.3s ease; 
+    z-index: 10; /* 💡 關鍵：層級設為 10，確保浮在影片和圖片之上 */
+}
 .next-btn {
     position: absolute;
     bottom: 5%; 

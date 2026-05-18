@@ -573,43 +573,6 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// ==========================================
-// 13. 第九 -> 第十區：GSAP 攝影機橫向平移 (🔥終極完美版：頭尾雙重緩衝)
-// ==========================================
-window.addEventListener('DOMContentLoaded', () => {
-    if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
-        gsap.registerPlugin(ScrollTrigger);
-
-        const track = document.getElementById('horizontal-track');
-        const wrapper = document.getElementById('horizontal-track-wrapper');
-
-        if (track && wrapper) {
-            // 1. 總滾動長度加長到 200%，分配給：停頓 -> 滑動 -> 停頓
-            let tl = gsap.timeline({
-                scrollTrigger: {
-                    trigger: wrapper,
-                    start: "top top",
-                    end: "+=200%", // 🎯 總長度改為 200%
-                    pin: wrapper,
-                    scrub: true
-                }
-            });
-
-            // 2. 開頭緩衝 (FAQ 停留)：讓 FAQ 滿版定格一下，不會立刻跑掉漏餡
-            tl.to({}, { duration: 0.5 }); 
-
-            // 3. 橫向移動：將軌道平滑推向圖標總覽
-            tl.to(track, {
-                x: "-100vw", 
-                ease: "none",
-                duration: 1
-            });
-
-            // 4. 結尾緩衝 (圖標總覽停留)：保留上一題加的設定，避免滑過頭
-            tl.to({}, { duration: 0.5 }); 
-        }
-    }
-});
 
 // ==========================================
 // 14. 第十區域：圖標點擊替換與滑鼠橫向滾動
@@ -710,15 +673,41 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 第十三區域：專屬單頁翻閱閱讀器
+// 第十三區域：專屬單頁翻閱閱讀器 (支援動態生成 50 頁)
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
     const track = document.getElementById('slider-track');
     const prevBtn = document.getElementById('prev-page-btn');
     const nextBtn = document.getElementById('next-page-btn');
-    const slides = document.querySelectorAll('.slide-page');
 
-    if (track && prevBtn && nextBtn && slides.length > 0) {
+    if (track && prevBtn && nextBtn) {
+        
+        // 🎯 1. 動態生成 50 頁圖片
+        track.innerHTML = ''; // 確保軌道是空的
+        const totalPages = 50; // 總頁數設定
+        
+        for (let i = 1; i <= totalPages; i++) {
+            // 自動補零邏輯：1 -> '01', 9 -> '09', 10 -> '10'
+            const pageNum = i.toString().padStart(2, '0'); 
+            
+            const slide = document.createElement('div');
+            slide.className = 'slide-page';
+            if (i === 1) slide.classList.add('active'); // 第一頁預設啟用
+            else slide.classList.add('waiting');        // 其他頁等待中
+            
+            const img = document.createElement('img');
+            img.src = `JPG/圖標規範手冊${pageNum}.jpg`;
+            img.alt = `頁面 ${i}`;
+            
+            // 防止圖片拖曳時產生破圖或預設的禁止符號
+            img.addEventListener('dragstart', e => e.preventDefault());
+            
+            slide.appendChild(img);
+            track.appendChild(slide);
+        }
+
+        // 🎯 2. 抓取剛剛生成的所有頁面，並綁定翻頁邏輯
+        const slides = document.querySelectorAll('.slide-page');
         let currentIndex = 0;
         const totalSlides = slides.length;
 
@@ -736,6 +725,7 @@ window.addEventListener('DOMContentLoaded', () => {
                 }
             });
 
+            // 控制按鈕的亮暗狀態
             if (currentIndex === 0) prevBtn.classList.add('disabled');
             else prevBtn.classList.remove('disabled');
 
@@ -743,6 +733,7 @@ window.addEventListener('DOMContentLoaded', () => {
             else nextBtn.classList.remove('disabled');
         };
 
+        // 按鈕點擊翻頁
         prevBtn.addEventListener('click', () => {
             if (currentIndex > 0) { currentIndex--; updateSlider(); }
         });
@@ -750,6 +741,7 @@ window.addEventListener('DOMContentLoaded', () => {
             if (currentIndex < totalSlides - 1) { currentIndex++; updateSlider(); }
         });
 
+        // 🎯 3. 滑鼠拖曳翻頁邏輯
         let startX = 0;
         let isDragging = false;
 
@@ -775,13 +767,10 @@ window.addEventListener('DOMContentLoaded', () => {
         track.addEventListener('mouseup', endDrag);
         track.addEventListener('mouseleave', endDrag);
 
-        const imgs = track.querySelectorAll('img');
-        imgs.forEach(img => img.addEventListener('dragstart', e => e.preventDefault()));
-
+        // 初始化第一次的畫面狀態
         updateSlider();
     }
 });
-
 // ==========================================
 // 17. 全域導覽列與 LOGO 顯示/隱藏控制
 // ==========================================
@@ -808,9 +797,47 @@ window.addEventListener('DOMContentLoaded', () => {
         observer.observe(overviewSection);
     }
 });
+// ==========================================
+// 13. 第九 -> 第十區：GSAP 延遲橫向滑入 (多滑一下才出現)
+// ==========================================
+window.addEventListener('DOMContentLoaded', () => {
+    if (typeof gsap !== 'undefined' && typeof ScrollTrigger !== 'undefined') {
+        gsap.registerPlugin(ScrollTrigger);
+
+        const container = document.getElementById('icon-slide-container');
+        const overviewSection = document.getElementById('icon-overview-section');
+
+        if (container && overviewSection) {
+            let tl = gsap.timeline({
+                scrollTrigger: {
+                    trigger: container,
+                    start: "top top",
+                    // 🎯 修改 1：將滾動空間從 150% 加長到 200%，容納結尾的緩衝時間
+                    end: "+=200%", 
+                    pin: container,
+                    scrub: true
+                }
+            });
+
+            // 1. 進場前停頓緩衝 (佔 25% 滾動時間)
+            tl.to({}, { duration: 0.5 }); 
+
+            // 2. 橫向滑入動畫 (佔 50% 滾動時間)
+            tl.to(overviewSection, {
+                x: 0, 
+                ease: "none",
+                duration: 1
+            });
+            
+            // 🎯 修改 2：新增這行「結尾停頓緩衝」(佔 25% 滾動時間)
+            // 魔法就在這！畫面完全滑入後，會死死鎖定在滿版狀態，多滑幾下才會放行往下滾。
+            tl.to({}, { duration: 0.5 }); 
+        }
+    }
+});
 
 // ==========================================
-// 18. 導覽列精準跳轉
+// 18. 導覽列精準跳轉 (延遲滑入版)
 // ==========================================
 window.addEventListener('DOMContentLoaded', () => {
     const navLinks = document.querySelectorAll('.navbar a');
@@ -826,18 +853,16 @@ window.addEventListener('DOMContentLoaded', () => {
             else if (targetId === '#what-is-section') {
                 e.preventDefault();
                 const targetEl = document.getElementById('what-is-section');
-                if (targetEl) {
-                    const absoluteTop = targetEl.getBoundingClientRect().top + window.scrollY;
-                    window.scrollTo({ top: absoluteTop, behavior: 'smooth' });
-                }
+                if (targetEl) window.scrollTo({ top: targetEl.getBoundingClientRect().top + window.scrollY, behavior: 'smooth' });
             }
             else if (targetId === '#icon-overview-section') {
                 e.preventDefault();
-                const wrapper = document.getElementById('horizontal-track-wrapper');
-                if (wrapper) {
-                    const spacer = wrapper.closest('.pin-spacer') || wrapper;
+                const container = document.getElementById('icon-slide-container');
+                if (container) {
+                    const spacer = container.closest('.pin-spacer') || container;
                     const absoluteTop = spacer.getBoundingClientRect().top + window.scrollY;
-                    const targetY = absoluteTop + window.innerHeight;
+                    // 🎯 計算跳轉定點：軌道頂部 + 1.5 倍螢幕高 (剛好是滑入結束的位置)
+                    const targetY = absoluteTop + (window.innerHeight * 1.5); 
                     window.scrollTo({ top: targetY, behavior: 'smooth' });
                 }
             }
@@ -846,40 +871,30 @@ window.addEventListener('DOMContentLoaded', () => {
 });
 
 // ==========================================
-// 19. 左下角「智慧返回按鈕」邏輯 (🔥 加入效能優化節流閥)
+// 19. 左下角「智慧返回按鈕」邏輯 
 // ==========================================
 let backBtnTicking = false;
 window.addEventListener('DOMContentLoaded', () => {
     const backBtn = document.getElementById('back-to-top-btn');
-    const wrapper = document.getElementById('horizontal-track-wrapper');
+    const container = document.getElementById('icon-slide-container');
     const specDetailsSection = document.getElementById('spec-details-section');
 
     if (backBtn) {
         let targetLocation = 'home';
-
         window.addEventListener('scroll', () => {
             if (!backBtnTicking) {
                 window.requestAnimationFrame(() => {
                     const scrollY = window.scrollY;
                     const windowHeight = window.innerHeight;
-
-                    if (scrollY < windowHeight * 0.5) {
-                        backBtn.classList.add('hidden');
-                    } else if (wrapper && specDetailsSection) {
-                        const spacer = wrapper.closest('.pin-spacer') || wrapper;
-                        const wrapperTop = spacer.getBoundingClientRect().top + scrollY;
-                        const overviewTargetY = wrapperTop + windowHeight;
+                    if (scrollY < windowHeight * 0.5) backBtn.classList.add('hidden');
+                    else if (container && specDetailsSection) {
+                        const spacer = container.closest('.pin-spacer') || container;
+                        const overviewTargetY = spacer.getBoundingClientRect().top + scrollY + (windowHeight * 1.5);
                         const specTop = specDetailsSection.getBoundingClientRect().top + scrollY;
 
-                        if (scrollY > overviewTargetY - (windowHeight * 0.5) && scrollY < specTop - (windowHeight * 0.5)) {
-                            backBtn.classList.add('hidden');
-                        } else if (scrollY >= specTop - (windowHeight * 0.5)) {
-                            backBtn.classList.remove('hidden');
-                            targetLocation = 'overview';
-                        } else {
-                            backBtn.classList.remove('hidden');
-                            targetLocation = 'home';
-                        }
+                        if (scrollY > overviewTargetY - (windowHeight * 0.5) && scrollY < specTop - (windowHeight * 0.5)) backBtn.classList.add('hidden');
+                        else if (scrollY >= specTop - (windowHeight * 0.5)) { backBtn.classList.remove('hidden'); targetLocation = 'overview'; }
+                        else { backBtn.classList.remove('hidden'); targetLocation = 'home'; }
                     }
                     backBtnTicking = false;
                 });
@@ -889,64 +904,17 @@ window.addEventListener('DOMContentLoaded', () => {
 
         backBtn.addEventListener('click', (e) => {
             e.preventDefault();
-            if (targetLocation === 'home') {
-                window.scrollTo({ top: 0, behavior: 'smooth' });
-            } else if (targetLocation === 'overview') {
-                if (wrapper) {
-                    const spacer = wrapper.closest('.pin-spacer') || wrapper;
-                    const wrapperTop = spacer.getBoundingClientRect().top + window.scrollY;
-                    const targetY = wrapperTop + window.innerHeight;
-                    window.scrollTo({ top: targetY, behavior: 'smooth' });
-                }
+            if (targetLocation === 'home') window.scrollTo({ top: 0, behavior: 'smooth' });
+            else if (targetLocation === 'overview' && container) {
+                const spacer = container.closest('.pin-spacer') || container;
+                window.scrollTo({ top: spacer.getBoundingClientRect().top + window.scrollY + (window.innerHeight * 1.5), behavior: 'smooth' });
             }
         });
     }
 });
 
 // ==========================================
-// 20. 測驗頁面：返回上一題邏輯
-// ==========================================
-window.addEventListener('DOMContentLoaded', () => {
-    const quizBackBtn = document.getElementById('quizBackBtn');
-    
-    if (quizBackBtn) {
-        quizBackBtn.addEventListener('click', () => {
-            if (quizState.currentStage === 1) {
-                if (quizState.qIndex === 0) {
-                    window.location.href = 'intro.html';
-                } else {
-                    const lastKey = quizState.history.pop(); 
-                    if (lastKey && quizState.scores[lastKey] > 0) {
-                        quizState.scores[lastKey]--; 
-                    }
-                    quizState.qIndex--; 
-                    renderQuestion(); 
-                }
-            } else if (quizState.currentStage === 2) {
-                if (quizState.qIndex === 0) {
-                    quizState.currentStage = 1;
-                    quizState.qIndex = 4; 
-                    const lastKey = quizState.history.pop();
-                    if (lastKey && quizState.scores[lastKey] > 0) {
-                        quizState.scores[lastKey]--; 
-                    }
-                    showView('view-quiz'); 
-                    renderQuestion();
-                } else {
-                    const lastKey = quizState.history.pop();
-                    if (lastKey && quizState.traitScores[lastKey] > 0) {
-                        quizState.traitScores[lastKey]--;
-                    }
-                    quizState.qIndex--;
-                    renderQuestion();
-                }
-            }
-        });
-    }
-});
-
-// ==========================================
-// 21. 導覽列滾動連動亮起 (Scroll Spy) (🔥 加入效能優化節流閥)
+// 21. 導覽列滾動連動亮起 (Scroll Spy)
 // ==========================================
 let navTicking = false;
 window.addEventListener('DOMContentLoaded', () => {
@@ -957,40 +925,60 @@ window.addEventListener('DOMContentLoaded', () => {
             window.requestAnimationFrame(() => {
                 const scrollY = window.scrollY;
                 const windowHeight = window.innerHeight;
-                
                 let activeIndex = 0; 
-
+                
                 const whatIsSection = document.getElementById('what-is-section');
-                if (whatIsSection) {
-                    const whatIsTop = whatIsSection.getBoundingClientRect().top + scrollY;
-                    if (scrollY >= whatIsTop - (windowHeight * 0.3)) {
-                        activeIndex = 1; 
-                    }
-                }
+                if (whatIsSection && scrollY >= whatIsSection.getBoundingClientRect().top + scrollY - (windowHeight * 0.3)) activeIndex = 1; 
 
-                const wrapper = document.getElementById('horizontal-track-wrapper');
-                if (wrapper) {
-                    const spacer = wrapper.closest('.pin-spacer') || wrapper;
-                    const wrapperTop = spacer.getBoundingClientRect().top + scrollY;
-                    if (scrollY >= wrapperTop + (windowHeight * 0.5)) {
-                        activeIndex = 2;
-                    }
+                const container = document.getElementById('icon-slide-container');
+                if (container) {
+                    const spacer = container.closest('.pin-spacer') || container;
+                    const targetY = spacer.getBoundingClientRect().top + scrollY + (windowHeight * 1.5);
+                    if (scrollY >= targetY - (windowHeight * 0.5)) activeIndex = 2;
                 }
 
                 navItems.forEach((item, index) => {
                     if (index === 3) return; 
-
-                    if (index === activeIndex) {
-                        item.classList.add('active'); 
-                    } else {
-                        item.classList.remove('active'); 
-                    }
+                    if (index === activeIndex) item.classList.add('active'); 
+                    else item.classList.remove('active'); 
                 });
                 navTicking = false;
             });
             navTicking = true;
         }
     }, { passive: true });
+});
+
+// ==========================================
+// 🎯 22. 第九區右下角：「瀏覽所有圖標」按鈕跳轉
+// ==========================================
+window.addEventListener('DOMContentLoaded', () => {
+    const goToOverviewBtn = document.getElementById('go-to-overview-btn');
+    if (goToOverviewBtn) {
+        goToOverviewBtn.addEventListener('click', (e) => {
+            e.preventDefault();
+            const container = document.getElementById('icon-slide-container');
+            if (container) {
+                const spacer = container.closest('.pin-spacer') || container;
+                window.scrollTo({ top: spacer.getBoundingClientRect().top + window.scrollY + (window.innerHeight * 1.5), behavior: 'smooth' });
+            }
+        });
+    }
+});
+
+// ==========================================
+// 🎯 錨點跳轉修正：確保精準回到圖標總覽
+// ==========================================
+window.addEventListener('load', () => {
+    if (window.location.hash === '#icon-overview-section') {
+        const container = document.getElementById('icon-slide-container');
+        if (container) {
+            setTimeout(() => {
+                const spacer = container.closest('.pin-spacer') || container;
+                window.scrollTo({ top: spacer.getBoundingClientRect().top + window.scrollY + (window.innerHeight * 1.5), behavior: 'smooth' });
+            }, 150);
+        }
+    }
 });
 
 // ==========================================
@@ -1020,26 +1008,7 @@ window.addEventListener('DOMContentLoaded', () => {
     }
 });
 
-// ==========================================
-// 🎯 22. 第九區右下角：「瀏覽所有圖標」按鈕跳轉
-// ==========================================
-window.addEventListener('DOMContentLoaded', () => {
-    const goToOverviewBtn = document.getElementById('go-to-overview-btn');
-    
-    if (goToOverviewBtn) {
-        goToOverviewBtn.addEventListener('click', (e) => {
-            e.preventDefault();
-            const wrapper = document.getElementById('horizontal-track-wrapper');
-            
-            if (wrapper) {
-                const spacer = wrapper.closest('.pin-spacer') || wrapper;
-                const absoluteTop = spacer.getBoundingClientRect().top + window.scrollY;
-                const targetY = absoluteTop + window.innerHeight; 
-                window.scrollTo({ top: targetY, behavior: 'smooth' });
-            }
-        });
-    }
-});
+
 
 // ==========================================
 // 🎯 23. 手語介紹 FAQ 點擊展開邏輯

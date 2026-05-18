@@ -2290,16 +2290,19 @@ html, body { -ms-overflow-style: none; scrollbar-width: none; }
 }
 .custom-slider-container {
     width: 100%;
-    aspect-ratio: 16 / 9; 
+    /* 🎯 關鍵 1：把原本的 16 / 9 改成符合你 18x10cm 的實際比例 */
+    aspect-ratio: 18 / 10; 
     
-    /* 🎯 關鍵：取消 hidden，以免翻頁的立體邊角被切斷 */
+    /* 🎯 關鍵 2：取消 hidden，以免翻頁的立體邊角被切斷 */
     overflow: visible; 
     
     border-radius: 10px;
     box-shadow: 0 10px 30px rgba(0,0,0,0.1); 
-    background-color: #FFFFFF;
     
-    /* 🎯 決定 3D 立體感的強度，數字越小越誇張，2500px 最自然 */
+    /* 🎯 關鍵 3：把白底改成透明，徹底杜絕漏白 */
+    background-color: transparent; 
+    
+    /* 決定 3D 立體感的強度 */
     perspective: 2500px; 
 }
 
@@ -2328,8 +2331,11 @@ html, body { -ms-overflow-style: none; scrollbar-width: none; }
 }
 
 .slide-page img {
-    width: 100%; height: 100%;
-    object-fit: contain; 
+    width: 100%; 
+    height: 100%;
+    
+    /* 🎯 關鍵 4：把 contain 改為 cover，確保圖片無死角填滿整個紙張範圍 */
+    object-fit: cover; 
 }
 
 /* 🎯 正在觀看的當前頁面 */
@@ -3219,3 +3225,4 @@ html, body { -ms-overflow-style: none; scrollbar-width: none; }
     height: 100%; /* SVG 在置中容器中佔滿 */
     /* 顏色與透明度已在 HTML 裡的 fill 屬性中設定 */
 }
+
